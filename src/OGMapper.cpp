@@ -135,6 +135,8 @@ void OGMapper::update(){
     //set cells covered by the robot to free
     setCellsInsideRobotFree();
 
+    dataAvailable = false;
+
     //visualize
     if(visualize){
         ROS_INFO("visualizing grid");
