@@ -23,7 +23,7 @@ OGMapper::OGMapper(){
 //    poseSub = nh.subscribe("/posori/Twist", 1, &OGMapper::poseCallback, this);
 //    irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
 
-    pose_sub_Ptr = new message_filters::Subscriber<OGMapper::posemsg>(nh, "/posori/TwistStamped", 1);
+    pose_sub_Ptr = new message_filters::Subscriber<OGMapper::posemsg>(nh, "/posori/Twist", 1);
     pose_sub_Ptr->registerCallback(&OGMapper::poseCallback, this);
     ir_sub_Ptr = new message_filters::Subscriber<OGMapper::irmsg>(nh, "/ir_reader_node/cdistance", 1);
     ir_sub_Ptr->registerCallback(&OGMapper::irCallback, this);
