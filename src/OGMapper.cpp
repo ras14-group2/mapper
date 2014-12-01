@@ -66,13 +66,18 @@ OGMapper::OGMapper(){
     //intitialize with dummy values to determine first message
 //    initialPosition = position(M_PI, M_PI);
 
+    //initialize map
+    map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
+    xOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
+    yOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
+
     roboPosition = position(0, 0);
     roboOrientation = 0;
 
-    maxXVal = 0;
-    minXVal = 0;
-    maxYVal = 0;
-    minYVal = 0;
+//    maxXVal = 0;
+//    minXVal = 0;
+//    maxYVal = 0;
+//    minYVal = 0;
 
     dataAvailable = false;
 
@@ -274,68 +279,40 @@ void OGMapper::setCellsInsideRobotFree(){
     return;
 }
 
-void OGMapper::setFree(cell gridCell){
-//    ROS_INFO("adding free cell: (%d, %d)", gridCell.x, gridCell.y);
-    std::map<cell, int8_t>::iterator it = map.find(gridCell);
-    if(it == map.end()){
-        map.insert(std::make_pair(gridCell, 40));
+void OGMapper::setFree(cell gridCell){    
+    int8_t oldVal = map[gridCell.y + yOffset][gridCell.x + xOffset];
+    if(oldVal == -1){
+        //unknown cell
+        map[gridCell.y + yOffset][gridCell.x + xOffset] = 40;
     }
     else{
-        it->second = it->second <= 10 ? 0 : it->second - 10;
+        //cell known, adapt value
+        map[gridCell.y + yOffset][gridCell.x + xOffset] = oldVal <= 10 ? 0 :  oldVal - 10;
     }
-    map.insert(std::make_pair(gridCell, 0));
-    adaptMaxValues(gridCell);
     return;
 }
 
 void OGMapper::setOccupied(cell gridCell){
-//    ROS_INFO("adding occupied cell: (%d, %d)", gridCell.x, gridCell.y);
-    std::map<cell, int8_t>::iterator it = map.find(gridCell);
-    if(it == map.end()){
-        map.insert(std::make_pair(gridCell, 60));
+    int8_t oldVal = map[gridCell.y + yOffset][gridCell.x + xOffset];
+    if(oldVal == -1){
+        //unknown cell
+        map[gridCell.y + yOffset][gridCell.x + xOffset] = 60;
     }
     else{
-        it->second = it->second >= 90 ? 100 : it->second + 10;
-    }
-    adaptMaxValues(gridCell);
-    return;
-}
-
-void OGMapper::adaptMaxValues(cell gridCell){
-    if(gridCell.x > maxXVal){
-        maxXVal = gridCell.x;
-    }
-    else if(gridCell.x < minXVal){
-        minXVal = gridCell.x;
-    }
-
-    if(gridCell.y > maxYVal){
-        maxYVal = gridCell.y;
-    }
-    else if(gridCell.y < minYVal){
-        minYVal = gridCell.y;
+        //cell known, adapt value
+        map[gridCell.y + yOffset][gridCell.x + xOffset] = oldVal >= 90 ? 0 :  oldVal + 10;
     }
     return;
 }
 
 void OGMapper::visualizeGrid(){
 
-    ROS_INFO("maxXVal: %d", maxXVal);
-    ROS_INFO("minXVal: %d", minXVal);
-    ROS_INFO("maxYVal: %d", maxYVal);
-    ROS_INFO("minYVal: %d", minYVal);
+    size_t gridWidth = map[0].size();
+    size_t gridHeight = map.size();
 
-    int gridWidth = maxXVal - minXVal;
-    if(maxXVal >= 0 && minXVal <= 0){
-        gridWidth++;
-    }
-    int gridHeight = maxYVal - minYVal;
-    if(maxYVal >= 0 && minYVal <= 0){
-        gridHeight++;
-    }
-    int gridSize = gridWidth * gridHeight;
+    size_t gridSize = gridWidth * gridHeight;
 
-    ROS_INFO("grid size: %d, %d", gridWidth, gridHeight);
+    ROS_INFO("grid size: %lu, %lu", gridWidth, gridHeight);
 
     nav_msgs::OccupancyGrid og;
     og.header.frame_id = "/map";
@@ -348,24 +325,14 @@ void OGMapper::visualizeGrid(){
     og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
     og.info.origin.position.z = 0;
 
-    size_t foundCells = 0;
-
     // fill the occupancy grid
-    for(size_t i = 0; i < og.data.size(); i++){
-        og.data[i] = -1;
+    for(size_t i = 0; i < gridHeight; i++){
+        size_t offset = i * gridWidth;
+        for(size_t j = 0; j < gridWidth; j++){
+            og.data[offset + j] = map[i][j];
+        }
     }
-
-    for(std::map<cell, int8_t>::const_iterator it = map.begin(), end = map.end(); it != end; it++){
-        int index = gridWidth * (it->first.y - minYVal) + it->first.x - minXVal;
-//        ROS_INFO("grid index for cell (%d, %d): %d", it->first.x, it->first.y, index);
-        og.data[index] = it->second;
-        foundCells++;
-    }
-
-    ROS_INFO("cells in map: %lu", map.size());
-    ROS_INFO("found cells in map: %lu", foundCells);
     gridPub.publish(og);
-    ROS_INFO("gridmessage published");
     return;
 }
 

@@ -11,7 +11,7 @@
 
 #include <vector>
 
-#define CELLS_PER_METER 25
+#define CELLS_PER_METER 50
 #define MAX_SENSOR_DISTANCE 0.2
 #define GRID_SIDE_LENGTH_M 10
 
@@ -95,16 +95,16 @@ private:
     bool visualize;
 
     //internal grid representation
-    std::map<cell, int8_t> map;
-//    std::vector<std::vector<int8_t> > map;
-//    int xOffset;
-//    int yOffset;
+//    std::map<cell, int8_t> map;
+    std::vector<std::vector<int8_t> > map;
+    int xOffset;
+    int yOffset;
 
-    //values to simplify creation of the grid message
-    int maxXVal;
-    int minXVal;
-    int maxYVal;
-    int minYVal;
+//    //values to simplify creation of the grid message
+//    int maxXVal;
+//    int minXVal;
+//    int maxYVal;
+//    int minYVal;
 
     //holds the values of the side ir-sensors
     std::vector<double> sideSensorReadings;
@@ -147,9 +147,6 @@ private:
 
     //sets the given cell to occupied (increases probability for occupied)
     void setOccupied(cell gridCell);
-
-    //adapts the global maximum and minimum values of the grid
-    void adaptMaxValues(cell gridCell);
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();
