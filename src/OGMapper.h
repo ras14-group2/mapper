@@ -139,7 +139,7 @@ private:
     void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
 
     //computes the global position from a position in robot space according to the robot's position and orientation
-    position computeGlobalPosition(position relativePosition);
+    position computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation);
 
     //computes the corresponding cell in the occupancy grid from a global position
     cell computeGridCell(position globalPosition);

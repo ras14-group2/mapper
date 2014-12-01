@@ -123,8 +123,8 @@ void OGMapper::update(){
                 measuredPoint.y = sideSensorPositions[i].y;
 
                 //compute global positions
-                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i]);
-                position globalPointPosition = computeGlobalPosition(measuredPoint);
+                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
+                position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
 
                 ROS_INFO("global sensor position: (%f, %f)", globalSensorPosition.x, globalSensorPosition.y);
                 ROS_INFO("global point position: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
@@ -146,8 +146,8 @@ void OGMapper::update(){
                 measuredPoint.y = sideSensorPositions[i].y;
 
                 //compute global positions
-                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i]);
-                position globalPointPosition = computeGlobalPosition(measuredPoint);
+                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
+                position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
 
                 //set cells
                 std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
@@ -164,7 +164,7 @@ void OGMapper::update(){
     if(pcDataAvailable){
 
         for(size_t i = 0; i < wallPoints.size(); i++){
-            setOccupied(computeGridCell(computeGlobalPosition(wallPoints[i])));
+            setOccupied(computeGridCell(computeGlobalPosition(wallPoints[i], pcRoboPosition, pcRoboOrientation)));
         }
         pcDataAvailable = false;
     }
@@ -222,10 +222,10 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     return;
 }
 
-OGMapper::position OGMapper::computeGlobalPosition(position relativePosition){
+OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation){
     position globalPosition;
-    globalPosition.x = irRoboPosition.x + (std::sin(irRoboOrientation)*relativePosition.x) + (std::cos(irRoboOrientation)*relativePosition.y);
-    globalPosition.y = irRoboPosition.y - (std::cos(irRoboOrientation)*relativePosition.x) + (std::sin(irRoboOrientation)*relativePosition.y);
+    globalPosition.x = roboPosition.x + (std::sin(roboOrientation)*relativePosition.x) + (std::cos(roboOrientation)*relativePosition.y);
+    globalPosition.y = roboPosition.y - (std::cos(roboOrientation)*relativePosition.x) + (std::sin(roboOrientation)*relativePosition.y);
     return globalPosition;
 }
 
@@ -288,7 +288,7 @@ OGMapper::position OGMapper::computeCellCornerPosition(cell gridCell, double xSi
 
 void OGMapper::setCellsInsideRobotFree(){
     for(size_t i = 0; i < insideRoboLines.size(); i++){
-        std::vector<cell> insideLine = computeTouchedGridCells(computeGlobalPosition(insideRoboLines[i][0]), computeGlobalPosition(insideRoboLines[i][1]));
+        std::vector<cell> insideLine = computeTouchedGridCells(computeGlobalPosition(insideRoboLines[i][0], irRoboPosition, irRoboOrientation), computeGlobalPosition(insideRoboLines[i][1], irRoboPosition, irRoboOrientation));
         for(size_t j = 0; j < insideLine.size(); j++){
             setFree(insideLine[j]);
         }
