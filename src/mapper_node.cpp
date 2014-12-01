@@ -6,7 +6,7 @@ int main(int argc, char **argv){
 
     mappers::OGMapper mapper;
 
-    ros::Rate loop_rate(20);
+    ros::Rate loop_rate(10);
 
     while(ros::ok()){
         ROS_INFO("loop");

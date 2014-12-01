@@ -11,8 +11,9 @@
 
 #include <vector>
 
-#define CELLS_PER_METER 100
-#define MAX_SENSOR_DISTANCE 0.25
+#define CELLS_PER_METER 25
+#define MAX_SENSOR_DISTANCE 0.2
+#define GRID_SIDE_LENGTH_M 10
 
 namespace mappers{
 
@@ -84,6 +85,9 @@ private:
     //a new message was received
     bool dataAvailable;
 
+    //counter to limit visualization frequency
+    int updateCounter;
+
     //publisher for the occupancy grid messages
     ros::Publisher gridPub;
 
@@ -92,6 +96,9 @@ private:
 
     //internal grid representation
     std::map<cell, int8_t> map;
+//    std::vector<std::vector<int8_t> > map;
+//    int xOffset;
+//    int yOffset;
 
     //values to simplify creation of the grid message
     int maxXVal;
@@ -111,13 +118,14 @@ private:
     //points to express some lines inside the robot to set the cells covered by the robot to free
     std::vector<std::vector<position> > insideRoboLines;
 
+    //the initial position of the robot, origin of the occupancy grid
+    position initialPosition;
+
     //the robot position in global space (from odometry)
     position roboPosition;
 
     //the robot orientation (from odometry)
     double roboOrientation;
-
-
 
     //computes the global position from a position in robot space according to the robot's position and orientation
     position computeGlobalPosition(position relativePosition);

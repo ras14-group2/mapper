@@ -49,7 +49,7 @@ OGMapper::OGMapper(){
 
     sideSensorReadings = std::vector<double>(4, -1);
 
-    insideRoboLines = std::vector<std::vector<position> >(4, std::vector<position>(2));
+    insideRoboLines = std::vector<std::vector<position> >(6, std::vector<position>(2));
     insideRoboLines[0][0] = sideSensorPositions[0];
     insideRoboLines[0][1] = sideSensorPositions[1];
     insideRoboLines[1][0] = sideSensorPositions[1];
@@ -58,6 +58,13 @@ OGMapper::OGMapper(){
     insideRoboLines[2][1] = sideSensorPositions[3];
     insideRoboLines[3][0] = sideSensorPositions[3];
     insideRoboLines[3][1] = sideSensorPositions[0];
+    insideRoboLines[4][0] = sideSensorPositions[0];
+    insideRoboLines[4][1] = sideSensorPositions[2];
+    insideRoboLines[5][0] = sideSensorPositions[1];
+    insideRoboLines[5][1] = sideSensorPositions[3];
+
+    //intitialize with dummy values to determine first message
+//    initialPosition = position(M_PI, M_PI);
 
     roboPosition = position(0, 0);
     roboOrientation = 0;
@@ -68,6 +75,8 @@ OGMapper::OGMapper(){
     minYVal = 0;
 
     dataAvailable = false;
+
+    updateCounter = 0;
 
     return;
 }
@@ -80,8 +89,15 @@ void OGMapper::update(){
     //compute measurement point position + set to occupied
     if(!dataAvailable){
         ROS_ERROR("no new data available");
+        if(updateCounter >= 50){
+            visualizeGrid();
+            updateCounter = 0;
+        }
+        updateCounter++;
         return;
     }
+    updateCounter++;
+
     ROS_INFO("robo position: (%f, %f)", roboPosition.x, roboPosition.y);
     ROS_INFO("robo orientation: %f", roboOrientation);
 
@@ -138,13 +154,15 @@ void OGMapper::update(){
     dataAvailable = false;
 
     //visualize
-    if(visualize){
-        ROS_INFO("visualizing grid");
-        visualizeGrid();
-        ROS_INFO("returned from visualizeGrid()");
-//        sleep(2);
-    }
-    ROS_INFO("returning from update()");
+//    if(visualize && (updateCounter == 50)){
+////        ROS_INFO("visualizing grid");
+//        visualizeGrid();
+//        updateCounter = 0;
+////        ROS_INFO("returned from visualizeGrid()");
+////        sleep(2);
+//    }
+
+//    ROS_INFO("returning from update()");
 
     return;
 }
@@ -162,10 +180,19 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     roboPosition.y = poseMsg->twist.linear.y;
     roboOrientation = poseMsg->twist.angular.z;
 
-    sideSensorReadings[0] = irMsg->front_right / 100.0d;
-    sideSensorReadings[1] = irMsg->back_right / 100.0d;
-    sideSensorReadings[2] = irMsg->back_left / 100.0d;
-    sideSensorReadings[3] = irMsg->front_left / 100.0d;
+//    sideSensorReadings[0] = irMsg->front_right / 100.0d;
+//    sideSensorReadings[1] = irMsg->back_right / 100.0d;
+//    sideSensorReadings[2] = irMsg->back_left / 100.0d;
+//    sideSensorReadings[3] = irMsg->front_left / 100.0d;
+
+    sideSensorReadings[0] = irMsg->front_left / 100.0d;
+    sideSensorReadings[1] = irMsg->back_left / 100.0d;
+    sideSensorReadings[2] = irMsg->back_right / 100.0d;
+    sideSensorReadings[3] = irMsg->front_right / 100.0d;
+
+//    if(initialPosition.x == M_PI && initialPosition.y == M_PI){
+//        initialPosition = roboPosition;
+//    }
 
     dataAvailable = true;
 
@@ -239,7 +266,7 @@ OGMapper::position OGMapper::computeCellCornerPosition(cell gridCell, double xSi
 
 void OGMapper::setCellsInsideRobotFree(){
     for(size_t i = 0; i < insideRoboLines.size(); i++){
-        std::vector<cell> insideLine = computeTouchedGridCells(insideRoboLines[i][0], insideRoboLines[i][1]);
+        std::vector<cell> insideLine = computeTouchedGridCells(computeGlobalPosition(insideRoboLines[i][0]), computeGlobalPosition(insideRoboLines[i][1]));
         for(size_t j = 0; j < insideLine.size(); j++){
             setFree(insideLine[j]);
         }
@@ -317,8 +344,8 @@ void OGMapper::visualizeGrid(){
     og.info.width = gridWidth;
     og.info.height = gridHeight;
     og.data.resize(gridSize);
-    og.info.origin.position.x = - (double) gridWidth / (2*CELLS_PER_METER);
-    og.info.origin.position.y = - (double) gridHeight / (2*CELLS_PER_METER);
+    og.info.origin.position.x = 0;//-initialPosition.x; //- (double) gridWidth / (2*CELLS_PER_METER);
+    og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
     og.info.origin.position.z = 0;
 
     size_t foundCells = 0;
@@ -330,7 +357,7 @@ void OGMapper::visualizeGrid(){
 
     for(std::map<cell, int8_t>::const_iterator it = map.begin(), end = map.end(); it != end; it++){
         int index = gridWidth * (it->first.y - minYVal) + it->first.x - minXVal;
-        ROS_INFO("grid index for cell (%d, %d): %d", it->first.x, it->first.y, index);
+//        ROS_INFO("grid index for cell (%d, %d): %d", it->first.x, it->first.y, index);
         og.data[index] = it->second;
         foundCells++;
     }
