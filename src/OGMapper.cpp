@@ -162,7 +162,10 @@ void OGMapper::update(){
     }
 
     if(pcDataAvailable){
-        //TODO
+
+        for(size_t i = 0; i < wallPoints.size(); i++){
+            setOccupied(computeGridCell(computeGlobalPosition(wallPoints[i])));
+        }
         pcDataAvailable = false;
     }
 
