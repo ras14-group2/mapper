@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <ir_reader/distance_readings.h>
+#include <object_finder/WallPoints.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -26,14 +27,9 @@ public:
     //typedefs
     typedef geometry_msgs::TwistStamped posemsg;
     typedef ir_reader::distance_readings irmsg;
+    typedef object_finder::WallPoints pcmsg;
     typedef message_filters::sync_policies::ApproximateTime<OGMapper::posemsg, OGMapper::irmsg> poseIrPolicy;
-
-    //subscriber callback functions
-    void poseCallback(const OGMapper::posemsg::ConstPtr &msg);
-    void irCallback(const OGMapper::irmsg::ConstPtr &msg);
-    void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
-
-
+    typedef message_filters::sync_policies::ApproximateTime<OGMapper::posemsg, OGMapper::pcmsg> posePcPolicy;
 
 private:
     //expresses the position of a point in either global or robot space
@@ -79,11 +75,15 @@ private:
     //filters
     message_filters::Subscriber<OGMapper::posemsg> *pose_sub_Ptr;
     message_filters::Subscriber<OGMapper::irmsg> *ir_sub_Ptr;
-    message_filters::Synchronizer<poseIrPolicy> *synchronizerPtr;
+    message_filters::Subscriber<OGMapper::pcmsg> *pc_sub_Ptr;
+    message_filters::Synchronizer<poseIrPolicy> *ir_synchronizerPtr;
+    message_filters::Synchronizer<posePcPolicy> *pc_synchronizerPtr;
 
+    //new synchronized ir- and pose-messages available
+    bool irDataAvailable;
 
-    //a new message was received
-    bool dataAvailable;
+    //new synchronized pointcloud- and pose-messages available
+    bool pcDataAvailable;
 
     //counter to limit visualization frequency
     int updateCounter;
@@ -115,17 +115,28 @@ private:
     //sign of x-direction of the sensors in robot space (clockwise, beginning with front right)
     std::vector<int> sideSensorOrientations;
 
+    //wallpoints from pointcloud
+    std::vector<position> wallPoints;
+
     //points to express some lines inside the robot to set the cells covered by the robot to free
     std::vector<std::vector<position> > insideRoboLines;
 
     //the initial position of the robot, origin of the occupancy grid
     position initialPosition;
 
-    //the robot position in global space (from odometry)
-    position roboPosition;
+    //the robot position and orientation in global space (from odometry) for ir sensor data
+    position irRoboPosition;
+    double irRoboOrientation;
 
-    //the robot orientation (from odometry)
-    double roboOrientation;
+    //robot position and orientation in global space for pointcloud data
+    position pcRoboPosition;
+    double pcRoboOrientation;
+
+    //subscriber callback functions
+    void poseCallback(const OGMapper::posemsg::ConstPtr &msg);
+    void irCallback(const OGMapper::irmsg::ConstPtr &msg);
+    void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
+    void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
 
     //computes the global position from a position in robot space according to the robot's position and orientation
     position computeGlobalPosition(position relativePosition);
