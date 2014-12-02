@@ -22,7 +22,6 @@ class OGMapper{
 
 public:
     OGMapper();
-    void update();
 
     //typedefs
     typedef geometry_msgs::TwistStamped posemsg;
@@ -137,6 +136,9 @@ private:
     void irCallback(const OGMapper::irmsg::ConstPtr &msg);
     void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
     void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
+
+    //insert the information from the ir sensors into the map
+    void processIrData();
 
     //computes the global position from a position in robot space according to the robot's position and orientation
     position computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation);

@@ -32,7 +32,7 @@ OGMapper::OGMapper(){
 //    pol.setMaxIntervalDuration(ros::Duration(0.1));
     ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(poseIrPolicy(10), *pose_sub_Ptr, *ir_sub_Ptr);
     ir_synchronizerPtr->registerCallback(&OGMapper::poseIrCallback, this);
-    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(10), *pose_sub_Ptr, *pc_sub_Ptr);
+    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(20), *pose_sub_Ptr, *pc_sub_Ptr);
     pc_synchronizerPtr->registerCallback(&OGMapper::posePcCallback, this);
 
     gridPub = nh.advertise<nav_msgs::OccupancyGrid>("/mapper/grid", 1);
@@ -90,96 +90,6 @@ OGMapper::OGMapper(){
     return;
 }
 
-void OGMapper::update(){
-
-    //for each sensor:
-    //compute global sensor position + global measurement point position
-    //compute touched cells + set to free
-    //compute measurement point position + set to occupied
-    if(!irDataAvailable && !pcDataAvailable){
-        ROS_ERROR("no new data available");
-        if(updateCounter >= 50){
-            visualizeGrid();
-            updateCounter = 0;
-        }
-        updateCounter++;
-        return;
-    }
-    updateCounter++;
-
-    ROS_INFO("robo position: (%f, %f)", irRoboPosition.x, irRoboPosition.y);
-    ROS_INFO("robo orientation: %f", irRoboOrientation);
-
-    if(irDataAvailable){
-
-        for(size_t i = 0; i < 4; i++){
-            ROS_INFO("sensor %lu value: %f", i, sideSensorReadings[i]);
-            if(sideSensorReadings[i] != -1 && sideSensorReadings[i] < MAX_SENSOR_DISTANCE){
-                //wall seen set cell to occupied and in-between cells to free
-
-                //compute relative posiiton of measured point
-                position measuredPoint;
-                measuredPoint.x = sideSensorPositions[i].x + sideSensorOrientations[i]*sideSensorReadings[i];
-                measuredPoint.y = sideSensorPositions[i].y;
-
-                //compute global positions
-                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
-                position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
-
-                ROS_INFO("global sensor position: (%f, %f)", globalSensorPosition.x, globalSensorPosition.y);
-                ROS_INFO("global point position: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
-
-                //set cells
-                std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
-                const size_t nOfFreeCells = touchedCells.size() - 1;
-                for(size_t j = 0; j < nOfFreeCells; j++){
-                    setFree(touchedCells[j]);
-                }
-                setOccupied(computeGridCell(globalPointPosition));
-            }
-            else if(sideSensorReadings[i] != -1){
-                //no wall seen, set close cells to free
-
-                //compute relative posiiton of measured point
-                position measuredPoint;
-                measuredPoint.x = sideSensorPositions[i].x + sideSensorOrientations[i]*MAX_SENSOR_DISTANCE;
-                measuredPoint.y = sideSensorPositions[i].y;
-
-                //compute global positions
-                position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
-                position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
-
-                //set cells
-                std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
-                const size_t nOfFreeCells = touchedCells.size();
-                for(size_t j = 0; j < nOfFreeCells; j++){
-                    setFree(touchedCells[j]);
-                }
-            }
-            sideSensorReadings[i] = -1;
-        }
-        irDataAvailable = false;
-    }
-
-    if(pcDataAvailable){
-
-        for(size_t i = 0; i < wallPoints.size(); i++){
-
-            position globalPointPosition = computeGlobalPosition(wallPoints[i], pcRoboPosition, pcRoboOrientation);
-//            ROS_INFO("robo pose: (%f, %f), %f", pcRoboPosition.x, pcRoboPosition.y, pcRoboOrientation);
-//            ROS_INFO("point in robo space: (%f, %f)", wallPoints[i].x, wallPoints[i].y);
-//            ROS_INFO("point in global space: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
-            setOccupied(computeGridCell(globalPointPosition));
-        }
-        pcDataAvailable = false;
-    }
-
-    //set cells covered by the robot to free
-    setCellsInsideRobotFree();
-
-    return;
-}
-
 void OGMapper::poseCallback(const OGMapper::posemsg::ConstPtr &msg){
     return;
 }
@@ -192,23 +102,23 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     irRoboPosition.x = poseMsg->twist.linear.x;
     irRoboPosition.y = poseMsg->twist.linear.y;
     irRoboOrientation = poseMsg->twist.angular.z;
-//    irRoboOrientation = 0;
-
-//    sideSensorReadings[0] = irMsg->front_right / 100.0d;
-//    sideSensorReadings[1] = irMsg->back_right / 100.0d;
-//    sideSensorReadings[2] = irMsg->back_left / 100.0d;
-//    sideSensorReadings[3] = irMsg->front_left / 100.0d;
 
     sideSensorReadings[0] = irMsg->front_right / 100.0d;
     sideSensorReadings[1] = irMsg->back_right / 100.0d;
     sideSensorReadings[2] = irMsg->back_left / 100.0d;
     sideSensorReadings[3] = irMsg->front_left / 100.0d;
 
-//    if(initialPosition.x == M_PI && initialPosition.y == M_PI){
-//        initialPosition = irRoboPosition;
-//    }
+    processIrData();
 
-    irDataAvailable = true;
+    //set cells covered by the robot to free
+    setCellsInsideRobotFree();
+
+//    if(updateCounter > 50){
+//        visualizeGrid();
+//        updateCounter = 0;
+//    }
+//    updateCounter++;
+    visualizeGrid();
 
     return;
 }
@@ -219,21 +129,86 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     pcRoboPosition.y = poseMsg->twist.linear.y;
     pcRoboOrientation = poseMsg->twist.angular.z;
 
-    int nOfPoints = std::min((int) pcMsg->points.size(), 50);
+//    int nOfPoints = std::min((int) pcMsg->points.size(), 50);
 
-    wallPoints = std::vector<position>(pcMsg->points.size());
+//    wallPoints = std::vector<position>(pcMsg->points.size());
     for(size_t i = 0; i < pcMsg->points.size(); i++){
-        wallPoints[i].x = pcMsg->points[i].x;
-        wallPoints[i].y = pcMsg->points[i].y;
+        position wallPoint;
+
+        wallPoint.x = pcMsg->points[i].x;
+        wallPoint.y = pcMsg->points[i].y;
+
+        position globalPointPosition = computeGlobalPosition(wallPoint, pcRoboPosition, pcRoboOrientation);
+        setOccupied(computeGridCell(globalPointPosition));
     }
-    pcDataAvailable = true;
+
+    //set cells covered by the robot to free
+    setCellsInsideRobotFree();
+
+//    if(updateCounter > 50){
+//        visualizeGrid();
+//        updateCounter = 0;
+//    }
+//    updateCounter++;
+    visualizeGrid();
+
+    return;
+}
+
+void OGMapper::processIrData(){
+
+    for(size_t i = 0; i < 4; i++){
+        ROS_INFO("sensor %lu value: %f", i, sideSensorReadings[i]);
+        if(sideSensorReadings[i] != -1 && sideSensorReadings[i] < MAX_SENSOR_DISTANCE){
+            //wall seen set cell to occupied and in-between cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = sideSensorPositions[i].x + sideSensorOrientations[i]*sideSensorReadings[i];
+            measuredPoint.y = sideSensorPositions[i].y;
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            ROS_INFO("global sensor position: (%f, %f)", globalSensorPosition.x, globalSensorPosition.y);
+            ROS_INFO("global point position: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size() - 1;
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+            setOccupied(computeGridCell(globalPointPosition));
+        }
+        else if(sideSensorReadings[i] != -1){
+            //no wall seen, set close cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = sideSensorPositions[i].x + sideSensorOrientations[i]*MAX_SENSOR_DISTANCE;
+            measuredPoint.y = sideSensorPositions[i].y;
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size();
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+        }
+    }
     return;
 }
 
 OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation){
     position globalPosition;
     globalPosition.x = roboPosition.x - (std::sin(roboOrientation)*relativePosition.x) - (std::cos(roboOrientation)*relativePosition.y);
-    globalPosition.y = roboPosition.y - (std::cos(roboOrientation)*relativePosition.x) - (std::sin(roboOrientation)*relativePosition.y);
+    globalPosition.y = roboPosition.y + (std::cos(roboOrientation)*relativePosition.x) - (std::sin(roboOrientation)*relativePosition.y);
     return globalPosition;
 }
 

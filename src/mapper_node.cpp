@@ -6,13 +6,6 @@ int main(int argc, char **argv){
 
     mappers::OGMapper mapper;
 
-    ros::Rate loop_rate(10);
-
-    while(ros::ok()){
-        ROS_INFO("loop");
-        ros::spinOnce();
-        mapper.update();
-        loop_rate.sleep();
-    }
+    ros::spin();
 	return 0;
 }
