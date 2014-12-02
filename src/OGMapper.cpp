@@ -1,7 +1,5 @@
 #include "OGMapper.h"
 
-#include <nav_msgs/OccupancyGrid.h>
-
 #include <cmath>
 
 namespace mappers{
@@ -20,8 +18,12 @@ OGMapper::OGMapper(){
         ROS_INFO("running without visualization");
     }
 
-//    poseSub = nh.subscribe("/posori/Twist", 1, &OGMapper::poseCallback, this);
+    objectSub = nh.subscribe("/recognition_controller/identified_objects", 1, &OGMapper::objectCallback, this);
+    markerPub = nh.advertise<visualization_msgs::Marker>("/mapper/object_marker", 1);
 //    irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
+
+    knownObjects = std::list<object>();
+    objectID = 0;
 
     pose_sub_Ptr = new message_filters::Subscriber<OGMapper::posemsg>(nh, "/posori/Twist", 1);
     pose_sub_Ptr->registerCallback(&OGMapper::poseCallback, this);
@@ -66,27 +68,40 @@ OGMapper::OGMapper(){
     insideRoboLines[5][0] = sideSensorPositions[1];
     insideRoboLines[5][1] = sideSensorPositions[3];
 
-    //intitialize with dummy values to determine first message
-//    initialPosition = position(M_PI, M_PI);
-
     //initialize map
-    map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
+//    map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
+    map = nav_msgs::OccupancyGrid();
+    map.header.frame_id = "/map";
+    map.info.resolution = 1.0d/CELLS_PER_METER;
+    gridHeight = GRID_SIDE_LENGTH_M * CELLS_PER_METER;
+    gridWidth = GRID_SIDE_LENGTH_M * CELLS_PER_METER;
+    map.info.width = gridWidth;
+    map.info.height = gridHeight;
+    map.data.resize(gridHeight * gridWidth);
+    map.info.origin.position.x = 0;
+    map.info.origin.position.y = 0;
+    map.info.origin.position.z = 0;
     xOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
     yOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
 
     irRoboPosition = position(0, 0);
     irRoboOrientation = 0;
 
-//    maxXVal = 0;
-//    minXVal = 0;
-//    maxYVal = 0;
-//    minYVal = 0;
-
-    irDataAvailable = false;
-    pcDataAvailable = false;
-
     updateCounter = 0;
 
+    return;
+}
+
+void OGMapper::objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg){
+
+    object newObject;
+    newObject.globalPosition.x = msg->position.x;
+    newObject.globalPosition.y = msg->position.y;
+    newObject.name = msg->name;
+
+    knownObjects.push_back(newObject);
+
+    sendMarker(newObject.globalPosition);
     return;
 }
 
@@ -281,60 +296,94 @@ void OGMapper::setCellsInsideRobotFree(){
 
 void OGMapper::setFree(cell gridCell){    
 //    ROS_INFO("access gridCell[%d][%d] (set free)", gridCell.y, gridCell.x);
-    int8_t oldVal = map[gridCell.y][gridCell.x];
+    int8_t oldVal = map.data[gridCell.y*gridWidth + gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map[gridCell.y][gridCell.x] = 40;
+        map.data[gridCell.y*gridWidth + gridCell.x] = 40;
     }
     else{
         //cell known, adapt value
-        map[gridCell.y][gridCell.x] = oldVal <= 10 ? 0 :  oldVal - 10;
+        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal <= 10 ? 0 :  oldVal - 10;
     }
     return;
 }
 
 void OGMapper::setOccupied(cell gridCell){
 //    ROS_INFO("access gridCell[%d][%d] (set occupied)", gridCell.y, gridCell.x);
-    int8_t oldVal = map[gridCell.y][gridCell.x];
+    int8_t oldVal = map.data[gridCell.y*gridWidth + gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map[gridCell.y][gridCell.x] = 60;
+        map.data[gridCell.y*gridWidth + gridCell.x] = 60;
     }
     else{
         //cell known, adapt value
-        map[gridCell.y][gridCell.x] = oldVal >= 90 ? 100 :  oldVal + 10;
+        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 90 ? 100 :  oldVal + 10;
     }
     return;
 }
 
 void OGMapper::visualizeGrid(){
 
-    size_t gridWidth = map[0].size();
-    size_t gridHeight = map.size();
+//    size_t gridWidth = map[0].size();
+//    size_t gridHeight = map.size();
 
-    size_t gridSize = gridWidth * gridHeight;
+//    size_t gridSize = gridWidth * gridHeight;
 
-    ROS_INFO("grid size: %lu, %lu", gridWidth, gridHeight);
+//    ROS_INFO("grid size: %lu, %lu", gridWidth, gridHeight);
 
-    nav_msgs::OccupancyGrid og;
-    og.header.frame_id = "/map";
-    og.header.stamp = ros::Time::now();
-    og.info.resolution = 1.0d / CELLS_PER_METER;
-    og.info.width = gridWidth;
-    og.info.height = gridHeight;
-    og.data.resize(gridSize);
-    og.info.origin.position.x = 0;//-initialPosition.x; //- (double) gridWidth / (2*CELLS_PER_METER);
-    og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
-    og.info.origin.position.z = 0;
+//    nav_msgs::OccupancyGrid og;
+//    og.header.frame_id = "/map";
+//    og.header.stamp = ros::Time::now();
+//    og.info.resolution = 1.0d / CELLS_PER_METER;
+//    og.info.width = gridWidth;
+//    og.info.height = gridHeight;
+//    og.data.resize(gridSize);
+//    og.info.origin.position.x = 0;//-initialPosition.x; //- (double) gridWidth / (2*CELLS_PER_METER);
+//    og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
+//    og.info.origin.position.z = 0;
 
-    // fill the occupancy grid
-    for(size_t i = 0; i < gridHeight; i++){
-        size_t offset = i * gridWidth;
-        for(size_t j = 0; j < gridWidth; j++){
-            og.data[offset + j] = map[i][j];
-        }
-    }
-    gridPub.publish(og);
+//    // fill the occupancy grid
+//    for(size_t i = 0; i < gridHeight; i++){
+//        size_t offset = i * gridWidth;
+//        for(size_t j = 0; j < gridWidth; j++){
+//            og.data[offset + j] = map[i][j];
+//        }
+//    }
+    map.header.stamp = ros::Time::now();
+    gridPub.publish(map);
+    return;
+}
+
+void OGMapper::sendMarker(position globalPosition){
+
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = "/map";
+    marker.header.stamp = ros::Time::now();
+    marker.ns = "basic_shapes";
+    marker.id = objectID++;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.pose.position.x = globalPosition.x;
+    marker.pose.position.y = globalPosition.y;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 1.0;
+
+    marker.scale.x = 0.05;
+    marker.scale.y = 0.05;
+    marker.scale.z = 0.05;
+
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0;
+
+    marker.lifetime = ros::Duration();
+
+    markerPub.publish(marker);
+
     return;
 }
 

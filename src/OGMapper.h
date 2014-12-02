@@ -5,14 +5,16 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <ir_reader/distance_readings.h>
 #include <object_finder/WallPoints.h>
+#include <recognition_controller/ObjectPosition.h>
+#include <visualization_msgs/Marker.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 
-#include <vector>
+#include <nav_msgs/OccupancyGrid.h>
 
-#define CELLS_PER_METER 50
+#define CELLS_PER_METER 100
 #define MAX_SENSOR_DISTANCE 0.2
 #define GRID_SIDE_LENGTH_M 10
 
@@ -67,9 +69,31 @@ private:
         }
     };
 
-    //subscribers for robot pose and ir-sensor values
-//    ros::Subscriber poseSub;
-//    ros::Subscriber irSub;
+    //saves an known object
+    struct object{
+        position globalPosition;
+        std::string name;
+
+        object(){
+            this->globalPosition = position();
+            this->name = "";
+        }
+
+        object(position globalPosition, std::string name){
+            this->globalPosition = globalPosition;
+            this->name = name;
+        }
+    };
+
+    //subscriber + publisher for objects
+    ros::Subscriber objectSub;
+    ros::Publisher markerPub;
+
+    //list of all known objects
+    std::list<object> knownObjects;
+
+    //id for markers
+    int objectID;
 
     //filters
     message_filters::Subscriber<OGMapper::posemsg> *pose_sub_Ptr;
@@ -77,12 +101,6 @@ private:
     message_filters::Subscriber<OGMapper::pcmsg> *pc_sub_Ptr;
     message_filters::Synchronizer<poseIrPolicy> *ir_synchronizerPtr;
     message_filters::Synchronizer<posePcPolicy> *pc_synchronizerPtr;
-
-    //new synchronized ir- and pose-messages available
-    bool irDataAvailable;
-
-    //new synchronized pointcloud- and pose-messages available
-    bool pcDataAvailable;
 
     //counter to limit visualization frequency
     int updateCounter;
@@ -94,16 +112,12 @@ private:
     bool visualize;
 
     //internal grid representation
-//    std::map<cell, int8_t> map;
-    std::vector<std::vector<int8_t> > map;
+//    std::vector<std::vector<int8_t> > map;
+    nav_msgs::OccupancyGrid map;
+    size_t gridHeight;
+    size_t gridWidth;
     int xOffset;
     int yOffset;
-
-//    //values to simplify creation of the grid message
-//    int maxXVal;
-//    int minXVal;
-//    int maxYVal;
-//    int minYVal;
 
     //holds the values of the side ir-sensors
     std::vector<double> sideSensorReadings;
@@ -132,6 +146,7 @@ private:
     double pcRoboOrientation;
 
     //subscriber callback functions
+    void objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg);
     void poseCallback(const OGMapper::posemsg::ConstPtr &msg);
     void irCallback(const OGMapper::irmsg::ConstPtr &msg);
     void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
@@ -163,6 +178,10 @@ private:
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();
+
+    //send a Marker to show the position of the detected object in the map
+    void sendMarker(position globalPosition);
+
 
 };
 
