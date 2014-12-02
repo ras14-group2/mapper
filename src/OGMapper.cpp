@@ -30,9 +30,9 @@ OGMapper::OGMapper(){
     pc_sub_Ptr = new message_filters::Subscriber<OGMapper::pcmsg>(nh, "/object_finder/wallpoints", 1);
 //    poseIrPolicy pol = poseIrPolicy(10);
 //    pol.setMaxIntervalDuration(ros::Duration(0.1));
-    ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(poseIrPolicy(1000), *pose_sub_Ptr, *ir_sub_Ptr);
+    ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(poseIrPolicy(10), *pose_sub_Ptr, *ir_sub_Ptr);
     ir_synchronizerPtr->registerCallback(&OGMapper::poseIrCallback, this);
-    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(1000), *pose_sub_Ptr, *pc_sub_Ptr);
+    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(10), *pose_sub_Ptr, *pc_sub_Ptr);
     pc_synchronizerPtr->registerCallback(&OGMapper::posePcCallback, this);
 
     gridPub = nh.advertise<nav_msgs::OccupancyGrid>("/mapper/grid", 1);
@@ -164,7 +164,12 @@ void OGMapper::update(){
     if(pcDataAvailable){
 
         for(size_t i = 0; i < wallPoints.size(); i++){
-            setOccupied(computeGridCell(computeGlobalPosition(wallPoints[i], pcRoboPosition, pcRoboOrientation)));
+
+            position globalPointPosition = computeGlobalPosition(wallPoints[i], pcRoboPosition, pcRoboOrientation);
+//            ROS_INFO("robo pose: (%f, %f), %f", pcRoboPosition.x, pcRoboPosition.y, pcRoboOrientation);
+//            ROS_INFO("point in robo space: (%f, %f)", wallPoints[i].x, wallPoints[i].y);
+//            ROS_INFO("point in global space: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
+            setOccupied(computeGridCell(globalPointPosition));
         }
         pcDataAvailable = false;
     }
@@ -187,16 +192,17 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     irRoboPosition.x = poseMsg->twist.linear.x;
     irRoboPosition.y = poseMsg->twist.linear.y;
     irRoboOrientation = poseMsg->twist.angular.z;
+//    irRoboOrientation = 0;
 
 //    sideSensorReadings[0] = irMsg->front_right / 100.0d;
 //    sideSensorReadings[1] = irMsg->back_right / 100.0d;
 //    sideSensorReadings[2] = irMsg->back_left / 100.0d;
 //    sideSensorReadings[3] = irMsg->front_left / 100.0d;
 
-    sideSensorReadings[0] = irMsg->front_left / 100.0d;
-    sideSensorReadings[1] = irMsg->back_left / 100.0d;
-    sideSensorReadings[2] = irMsg->back_right / 100.0d;
-    sideSensorReadings[3] = irMsg->front_right / 100.0d;
+    sideSensorReadings[0] = irMsg->front_right / 100.0d;
+    sideSensorReadings[1] = irMsg->back_right / 100.0d;
+    sideSensorReadings[2] = irMsg->back_left / 100.0d;
+    sideSensorReadings[3] = irMsg->front_left / 100.0d;
 
 //    if(initialPosition.x == M_PI && initialPosition.y == M_PI){
 //        initialPosition = irRoboPosition;
@@ -213,6 +219,8 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     pcRoboPosition.y = poseMsg->twist.linear.y;
     pcRoboOrientation = poseMsg->twist.angular.z;
 
+    int nOfPoints = std::min((int) pcMsg->points.size(), 50);
+
     wallPoints = std::vector<position>(pcMsg->points.size());
     for(size_t i = 0; i < pcMsg->points.size(); i++){
         wallPoints[i].x = pcMsg->points[i].x;
@@ -224,13 +232,13 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
 OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation){
     position globalPosition;
-    globalPosition.x = roboPosition.x + (std::sin(roboOrientation)*relativePosition.x) + (std::cos(roboOrientation)*relativePosition.y);
-    globalPosition.y = roboPosition.y - (std::cos(roboOrientation)*relativePosition.x) + (std::sin(roboOrientation)*relativePosition.y);
+    globalPosition.x = roboPosition.x - (std::sin(roboOrientation)*relativePosition.x) - (std::cos(roboOrientation)*relativePosition.y);
+    globalPosition.y = roboPosition.y - (std::cos(roboOrientation)*relativePosition.x) - (std::sin(roboOrientation)*relativePosition.y);
     return globalPosition;
 }
 
 OGMapper::cell OGMapper::computeGridCell(position globalPosition){
-    return cell(round(globalPosition.x * CELLS_PER_METER), round(globalPosition.y * CELLS_PER_METER));
+    return cell(round(globalPosition.x * CELLS_PER_METER) + xOffset, round(globalPosition.y * CELLS_PER_METER) + yOffset);
 }
 
 std::vector<OGMapper::cell> OGMapper::computeTouchedGridCells(position origin, position point){
@@ -281,8 +289,8 @@ std::vector<OGMapper::cell> OGMapper::computeTouchedGridCells(position origin, p
 
 OGMapper::position OGMapper::computeCellCornerPosition(cell gridCell, double xSign, double ySign){
     position corner;
-    corner.x = ((double) gridCell.x / CELLS_PER_METER) + (xSign * 1/(2 * CELLS_PER_METER));
-    corner.y = ((double) gridCell.y / CELLS_PER_METER) + (ySign * 1/(2 * CELLS_PER_METER));
+    corner.x = ((double) (gridCell.x - xOffset) / CELLS_PER_METER) + (xSign * 1/(2 * CELLS_PER_METER));
+    corner.y = ((double) (gridCell.y - yOffset) / CELLS_PER_METER) + (ySign * 1/(2 * CELLS_PER_METER));
     return corner;
 }
 
@@ -297,27 +305,29 @@ void OGMapper::setCellsInsideRobotFree(){
 }
 
 void OGMapper::setFree(cell gridCell){    
-    int8_t oldVal = map[gridCell.y + yOffset][gridCell.x + xOffset];
+//    ROS_INFO("access gridCell[%d][%d] (set free)", gridCell.y, gridCell.x);
+    int8_t oldVal = map[gridCell.y][gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map[gridCell.y + yOffset][gridCell.x + xOffset] = 40;
+        map[gridCell.y][gridCell.x] = 40;
     }
     else{
         //cell known, adapt value
-        map[gridCell.y + yOffset][gridCell.x + xOffset] = oldVal <= 10 ? 0 :  oldVal - 10;
+        map[gridCell.y][gridCell.x] = oldVal <= 10 ? 0 :  oldVal - 10;
     }
     return;
 }
 
 void OGMapper::setOccupied(cell gridCell){
-    int8_t oldVal = map[gridCell.y + yOffset][gridCell.x + xOffset];
+//    ROS_INFO("access gridCell[%d][%d] (set occupied)", gridCell.y, gridCell.x);
+    int8_t oldVal = map[gridCell.y][gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map[gridCell.y + yOffset][gridCell.x + xOffset] = 60;
+        map[gridCell.y][gridCell.x] = 60;
     }
     else{
         //cell known, adapt value
-        map[gridCell.y + yOffset][gridCell.x + xOffset] = oldVal >= 90 ? 0 :  oldVal + 10;
+        map[gridCell.y][gridCell.x] = oldVal >= 90 ? 100 :  oldVal + 10;
     }
     return;
 }
