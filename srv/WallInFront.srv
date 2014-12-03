@@ -1,3 +1,4 @@
-int8 dummy
+geometry_msgs/Point position
+float64 angle
 ---
 int8 wallInFront

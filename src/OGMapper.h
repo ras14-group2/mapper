@@ -7,6 +7,7 @@
 #include <object_finder/WallPoints.h>
 #include <recognition_controller/ObjectPosition.h>
 #include <visualization_msgs/Marker.h>
+#include <mapper/WallInFront.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -89,6 +90,9 @@ private:
     ros::Subscriber objectSub;
     ros::Publisher markerPub;
 
+    //service server
+    ros::ServiceServer service;
+
     //list of all known objects
     std::list<object> knownObjects;
 
@@ -152,6 +156,9 @@ private:
     void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
     void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
 
+    //service functions
+    bool wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res);
+
     //insert the information from the ir sensors into the map
     void processIrData();
 
@@ -175,6 +182,9 @@ private:
 
     //sets the given cell to occupied (increases probability for occupied)
     void setOccupied(cell gridCell);
+
+    //returns the given cell's value
+    int8_t getCellValue(cell gridCell);
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();

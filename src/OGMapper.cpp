@@ -22,6 +22,8 @@ OGMapper::OGMapper(){
     markerPub = nh.advertise<visualization_msgs::Marker>("/mapper/object_marker", 1);
 //    irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
 
+    service = nh.advertiseService("wall_in_front", &OGMapper::wallInFrontService, this);
+
     knownObjects = std::list<object>();
     objectID = 0;
 
@@ -177,6 +179,50 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     return;
 }
 
+bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res){
+
+    //depth of observed box
+    double depth = 0.1;
+
+    //back corners of observed box
+    position bl(-0.12, 0.115);
+    position br(0.12, 0.115);
+
+    //position of the robot
+    position roboPosition(req.position.x, req.position.y);
+    double roboOrientation = req.angle;
+
+    int occupiedCells = 0;
+
+    int nOfLines = depth / CELLS_PER_METER + 1;
+
+    for(size_t i = 0; i < nOfLines; i++){
+        //compute ends of line to check
+        position leftEnd(bl.x, bl.y + ((double) i)/CELLS_PER_METER);
+        position rightEnd(br.x, br.y + ((double) i)/CELLS_PER_METER);
+
+        position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
+        position globalRightEnd = computeGlobalPosition(rightEnd, roboPosition, roboOrientation);
+
+        std::vector<cell> lineCells = computeTouchedGridCells(globalLeftEnd, globalRightEnd);
+
+        for(size_t j = 0; j < lineCells.size(); j++){
+            if(getCellValue(lineCells[j]) > 50){
+                occupiedCells++;
+            }
+        }
+    }
+
+    if(occupiedCells > 5){
+        res.wallInFront = 1;
+    }
+    else{
+        res.wallInFront = 0;
+    }
+
+    return true;
+}
+
 void OGMapper::processIrData(){
 
     for(size_t i = 0; i < 4; i++){
@@ -327,6 +373,10 @@ void OGMapper::setOccupied(cell gridCell){
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 80 ? 100 :  oldVal + 20;
     }
     return;
+}
+
+int8_t OGMapper::getCellValue(cell gridCell){
+    return map.data[gridCell.y*gridWidth + gridCell.x];
 }
 
 void OGMapper::visualizeGrid(){
