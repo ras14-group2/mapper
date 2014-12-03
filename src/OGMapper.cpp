@@ -192,7 +192,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     position roboPosition(req.position.x, req.position.y);
     double roboOrientation = req.angle;
 
-    int occupiedCells = 0;
+//    int occupiedCells = 0;
 
     int nOfLines = depth / CELLS_PER_METER + 1;
 
@@ -208,17 +208,20 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
 
         for(size_t j = 0; j < lineCells.size(); j++){
             if(getCellValue(lineCells[j]) > 50){
-                occupiedCells++;
+                res.wallInFront = 1;
+                return true;
             }
         }
     }
 
-    if(occupiedCells > 5){
-        res.wallInFront = 1;
-    }
-    else{
-        res.wallInFront = 0;
-    }
+    res.wallInFront = 0;
+
+//    if(occupiedCells > 5){
+//        res.wallInFront = 1;
+//    }
+//    else{
+//        res.wallInFront = 0;
+//    }
 
     return true;
 }
