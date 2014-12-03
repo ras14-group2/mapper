@@ -15,7 +15,7 @@
 #include <nav_msgs/OccupancyGrid.h>
 
 #define CELLS_PER_METER 100
-#define MAX_SENSOR_DISTANCE 0.2
+#define MAX_SENSOR_DISTANCE 0.25
 #define GRID_SIDE_LENGTH_M 10
 
 namespace mappers{

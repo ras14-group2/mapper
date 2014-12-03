@@ -304,11 +304,11 @@ void OGMapper::setFree(cell gridCell){
     int8_t oldVal = map.data[gridCell.y*gridWidth + gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map.data[gridCell.y*gridWidth + gridCell.x] = 40;
+        map.data[gridCell.y*gridWidth + gridCell.x] = 30;
     }
     else{
         //cell known, adapt value
-        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal <= 10 ? 0 :  oldVal - 10;
+        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal <= 20 ? 0 :  oldVal - 20;
     }
     return;
 }
@@ -318,11 +318,11 @@ void OGMapper::setOccupied(cell gridCell){
     int8_t oldVal = map.data[gridCell.y*gridWidth + gridCell.x];
     if(oldVal == -1){
         //unknown cell
-        map.data[gridCell.y*gridWidth + gridCell.x] = 60;
+        map.data[gridCell.y*gridWidth + gridCell.x] = 70;
     }
     else{
         //cell known, adapt value
-        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 90 ? 100 :  oldVal + 10;
+        map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 80 ? 100 :  oldVal + 20;
     }
     return;
 }
