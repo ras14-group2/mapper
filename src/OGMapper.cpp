@@ -99,6 +99,8 @@ OGMapper::OGMapper(){
 
 void OGMapper::objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg){
 
+    ROS_INFO("received object position: %s at (%f, %f)", msg->name.c_str(), msg->position.x, msg->position.y);
+
     object newObject;
     newObject.globalPosition.x = msg->position.x;
     newObject.globalPosition.y = msg->position.y;
@@ -178,7 +180,7 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 void OGMapper::processIrData(){
 
     for(size_t i = 0; i < 4; i++){
-        ROS_INFO("sensor %lu value: %f", i, sideSensorReadings[i]);
+//        ROS_INFO("sensor %lu value: %f", i, sideSensorReadings[i]);
         if(sideSensorReadings[i] != -1 && sideSensorReadings[i] < MAX_SENSOR_DISTANCE){
             //wall seen set cell to occupied and in-between cells to free
 
@@ -191,8 +193,8 @@ void OGMapper::processIrData(){
             position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
             position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
 
-            ROS_INFO("global sensor position: (%f, %f)", globalSensorPosition.x, globalSensorPosition.y);
-            ROS_INFO("global point position: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
+//            ROS_INFO("global sensor position: (%f, %f)", globalSensorPosition.x, globalSensorPosition.y);
+//            ROS_INFO("global point position: (%f, %f)", globalPointPosition.x, globalPointPosition.y);
 
             //set cells
             std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
