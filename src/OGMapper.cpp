@@ -81,6 +81,11 @@ OGMapper::OGMapper(){
     map.info.origin.position.x = 0;
     map.info.origin.position.y = 0;
     map.info.origin.position.z = 0;
+
+    for(size_t i = 0; i < map.data.size(); i++){
+        map.data[i] = -1;
+    }
+
     xOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
     yOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
 
