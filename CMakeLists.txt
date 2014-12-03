@@ -10,8 +10,18 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   roscpp
   message_filters
+  message_generation
 )
 
+add_service_files(
+  FILES
+  WallInFront.srv
+)
+
+generate_messages(
+  DEPENDENCIES
+
+)
 
 catkin_package(
 #  INCLUDE_DIRS include
