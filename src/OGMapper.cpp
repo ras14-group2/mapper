@@ -296,11 +296,14 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     ros::Time now = ros::Time::now();
     ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
     //depth of observed box
-    double depth = 0.1;
+//    double depth = 0.1;
 
     //back corners of observed box
     position bl(-0.12, 0.115);
     position br(0.12, 0.115);
+    position tip(0, 17);
+
+    double depth = tip.y - bl.y;
 
     //position of the robot
     position roboPosition(req.position.x, req.position.y);
@@ -312,8 +315,8 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
 
     for(size_t i = 0; i < nOfLines; i++){
         //compute ends of line to check
-        position leftEnd(bl.x, bl.y + ((double) i)/CELLS_PER_METER);
-        position rightEnd(br.x, br.y + ((double) i)/CELLS_PER_METER);
+        position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) (nOfLines-1), bl.y + ((double) i)/CELLS_PER_METER);
+        position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) (nOfLines-1), br.y + ((double) i)/CELLS_PER_METER);
 
         position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
         position globalRightEnd = computeGlobalPosition(rightEnd, roboPosition, roboOrientation);
