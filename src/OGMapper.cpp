@@ -22,7 +22,7 @@ OGMapper::OGMapper(){
     markerPub = nh.advertise<visualization_msgs::Marker>("/mapper/object_marker", 1);
 //    irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
 
-    service = nh.advertiseService("wall_in_front", &OGMapper::wallInFrontService, this);
+    service = nh.advertiseService("/wall_in_front", &OGMapper::wallInFrontService, this);
 
     knownObjects = std::list<object>();
     objectID = 0;
@@ -181,6 +181,8 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
 bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res){
 
+    ros::Time now = ros::Time::now();
+    ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
     //depth of observed box
     double depth = 0.1;
 
@@ -209,20 +211,16 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         for(size_t j = 0; j < lineCells.size(); j++){
             if(getCellValue(lineCells[j]) > 50){
                 res.wallInFront = 1;
+                now = ros::Time::now();
+                ROS_INFO("responded at %d.%d", now.sec, now.nsec);
                 return true;
             }
         }
     }
-
     res.wallInFront = 0;
 
-//    if(occupiedCells > 5){
-//        res.wallInFront = 1;
-//    }
-//    else{
-//        res.wallInFront = 0;
-//    }
-
+    now = ros::Time::now();
+    ROS_INFO("responded at %d.%d", now.sec, now.nsec);
     return true;
 }
 
