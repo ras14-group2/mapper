@@ -301,7 +301,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     //back corners of observed box
     position bl(-0.12, 0.115);
     position br(0.12, 0.115);
-    position tip(0, 17);
+    position tip(0, 0.17);
 
     double depth = tip.y - bl.y;
 
