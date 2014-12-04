@@ -15,7 +15,7 @@
 
 #include <nav_msgs/OccupancyGrid.h>
 
-#define CELLS_PER_METER 100
+#define CELLS_PER_METER 50
 #define MAX_SENSOR_DISTANCE 0.25
 #define GRID_SIDE_LENGTH_M 10
 
