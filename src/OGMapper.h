@@ -94,21 +94,26 @@ private:
     	struct edge {
     		int from, to;
     		double dist;
+    		edge() {}
+    		edge(int f, int t, double d) {
+    			from = f;
+    			to = t;
+    			dist = d;
+    		}
     	};
     	
-    	edge neighbors[4];	//0 east, 1 north, 2 west, 3 south
+    	edge edges[4];	//0 east, 1 north, 2 west, 3 south
     	
     	mapNode(double x, double y) : pos(x, y) {
     		for (int i = 0;i<4;++i) {
-    			neighbors[i].from = this;
-    			neighbors[i].to = NULL;
+    			edges[i].to = -1;
     		}
     		active = true;
     	}
     };
 		
 		//node creation request subscriber
-		ros::subscriber nodeCreationSub;
+		ros::Subscriber nodeCreationSub;
 		
     //subscriber + publisher for objects
     ros::Subscriber objectSub;
@@ -178,7 +183,10 @@ private:
 		
 		//function to add a node to the topological map
 		//Return true if inserted as a new node, false if merged with other node(s)
-		bool addNode(const OGMapper::mapNode& n);
+		bool addNode(double x, double y);
+		
+		//Visualize the topological map nodes in rviz
+		void plotNodes();
 		
     //subscriber callback functions
     void objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg);
@@ -186,7 +194,8 @@ private:
     void irCallback(const OGMapper::irmsg::ConstPtr &msg);
     void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
     void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
-
+    void nodeCreationCallback(const geometry_msgs::Point::ConstPtr &msg);
+    
     //service functions
     bool wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res);
 
