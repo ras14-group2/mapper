@@ -172,6 +172,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
 void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg){
 
+		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
     pcRoboPosition.x = poseMsg->twist.linear.x;
     pcRoboPosition.y = poseMsg->twist.linear.y;
     pcRoboOrientation = poseMsg->twist.angular.z;
