@@ -212,7 +212,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
             if(getCellValue(lineCells[j]) > 50){
                 res.wallInFront = 1;
                 now = ros::Time::now();
-                ROS_INFO("responded at %d.%d", now.sec, now.nsec);
+                ROS_INFO("responded WALL at %d.%d", now.sec, now.nsec);
                 return true;
             }
         }
@@ -220,7 +220,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     res.wallInFront = 0;
 
     now = ros::Time::now();
-    ROS_INFO("responded at %d.%d", now.sec, now.nsec);
+    ROS_INFO("responded free at %d.%d", now.sec, now.nsec);
     return true;
 }
 
