@@ -17,10 +17,12 @@ OGMapper::OGMapper(){
     else{
         ROS_INFO("running without visualization");
     }
-
+		
+		nodeCreationSub = nh.subscribe("/node_creation", 100, &OGMapper::nodeCreationCallback, this);
+		
     objectSub = nh.subscribe("/recognition_controller/identified_objects", 1, &OGMapper::objectCallback, this);
     markerPub = nh.advertise<visualization_msgs::Marker>("/mapper/object_marker", 1);
-//    irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
+    //irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
 
     service = nh.advertiseService("/wall_in_front", &OGMapper::wallInFrontService, this);
 
@@ -32,8 +34,8 @@ OGMapper::OGMapper(){
     ir_sub_Ptr = new message_filters::Subscriber<OGMapper::irmsg>(nh, "/ir_reader_node/cdistance", 1);
     ir_sub_Ptr->registerCallback(&OGMapper::irCallback, this);
     pc_sub_Ptr = new message_filters::Subscriber<OGMapper::pcmsg>(nh, "/object_finder/wallpoints", 1);
-//    poseIrPolicy pol = poseIrPolicy(10);
-//    pol.setMaxIntervalDuration(ros::Duration(0.1));
+    //poseIrPolicy pol = poseIrPolicy(10);
+    //pol.setMaxIntervalDuration(ros::Duration(0.1));
     ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(poseIrPolicy(10), *pose_sub_Ptr, *ir_sub_Ptr);
     ir_synchronizerPtr->registerCallback(&OGMapper::poseIrCallback, this);
     pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(20), *pose_sub_Ptr, *pc_sub_Ptr);
@@ -71,7 +73,7 @@ OGMapper::OGMapper(){
     insideRoboLines[5][1] = sideSensorPositions[3];
 
     //initialize map
-//    map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
+    //map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
     map = nav_msgs::OccupancyGrid();
     map.header.frame_id = "/map";
     map.info.resolution = 1.0d/CELLS_PER_METER;
@@ -99,8 +101,12 @@ OGMapper::OGMapper(){
     return;
 }
 
-bool OGMapper::addNode(const OGMapper::mapNode& n) {
+bool OGMapper::addNode(double x, double y) {
+	const double mergeLimit = 0.1;
+	mapNode n(x, y);
+
 	if (nodes.empty()) {
+		nodes.reserve(1000u);	//Should be plenty enough
 		nodes.push_back(n);
 		return true;
 	}
@@ -111,15 +117,49 @@ bool OGMapper::addNode(const OGMapper::mapNode& n) {
 	double xdiff = n.pos.x - prevn.pos.x;
 	double ydiff = n.pos.y - prevn.pos.y;
 	if (fabs(xdiff) > fabs(ydiff)) {
-		if (xdiff < 0.0) {
-			
+		if (xdiff > mergeLimit) {
+			dir = 0;	//east
+		} else if (xdiff < -mergeLimit) {
+			dir = 2;	//west
+		} else {
+			//Too close to the last one
+			return false;
+		}
+	} else {
+		if (ydiff > mergeLimit) {
+			dir = 1;	//north
+		} else if (ydiff < -mergeLimit) {
+			dir = 3;	//south
+		} else {
+			//Too close to the last one
+			return false;
 		}
 	}
+	int oppDir = (dir+2)%4;	//Opposite direction of dir
 	
 	//See if we can merge the node with a currently existing one.
 	//TODO
+	for (int i = 0;i<nodes.size();++i) {
+		mapNode& other = nodes[i];
+		if (fabs(other.pos.x - n.pos.x) < mergeLimit && fabs(other.pos.y - n.pos.y) < mergeLimit) {
+			//Sufficiently close; merge!
+			prevn.neighbor[dir] = i;
+			other.neighbor[oppDir] = nodes.size()-2;
+			return false;
+		}
+	}
 	
+	prevn.neighbor[dir] = nodes.size()-1;
+	n.neighbor[oppDir] = nodes.size()-2;
+	nodes.push_back(n);
 	return true;
+}
+
+void OGMapper::nodeCreationCallback(const geometry_msgs::Point::ConstPtr &msg) {
+	ROS_INFO("Received node creation request at position (%lf, %lf)", msg->x, msg->y);
+	if (true) {	//Perhaps some condition, but probably not
+		addNode(msg->x, msg->y);
+	}
 }
 
 void OGMapper::objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg){

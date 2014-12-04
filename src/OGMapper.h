@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/Point.h>
 #include <ir_reader/distance_readings.h>
 #include <object_finder/WallPoints.h>
 #include <recognition_controller/ObjectPosition.h>
@@ -88,9 +89,10 @@ private:
     
     struct mapNode {
     	position pos;
+    	bool active;
     	
     	struct edge {
-    		mapNode *from, *to;
+    		int from, to;
     		double dist;
     	};
     	
@@ -101,9 +103,13 @@ private:
     			neighbors[i].from = this;
     			neighbors[i].to = NULL;
     		}
+    		active = true;
     	}
     };
-
+		
+		//node creation request subscriber
+		ros::subscriber nodeCreationSub;
+		
     //subscriber + publisher for objects
     ros::Subscriber objectSub;
     ros::Publisher markerPub;
@@ -142,7 +148,7 @@ private:
     int yOffset;
 		
 		//Graph of the topological map
-		std::list<mapNode> nodes;
+		std::vector<mapNode> nodes;
 
     //holds the values of the side ir-sensors
     std::vector<double> sideSensorReadings;
