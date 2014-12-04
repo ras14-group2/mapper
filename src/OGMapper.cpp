@@ -311,11 +311,11 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
 
 //    int occupiedCells = 0;
 
-    int nOfLines = depth / CELLS_PER_METER + 1;
+    int nOfLines = depth * CELLS_PER_METER + 1;
 
     for(size_t i = 0; i < nOfLines; i++){
         //compute ends of line to check
-        position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) (nOfLines-1), bl.y + ((double) i)/CELLS_PER_METER);
+        position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) (nOfLines-1), bl.y + ((double) i)/ (double)CELLS_PER_METER);
         position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) (nOfLines-1), br.y + ((double) i)/CELLS_PER_METER);
 
         position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
