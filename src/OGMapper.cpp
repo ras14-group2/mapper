@@ -99,6 +99,29 @@ OGMapper::OGMapper(){
     return;
 }
 
+bool OGMapper::addNode(const OGMapper::mapNode& n) {
+	if (nodes.empty()) {
+		nodes.push_back(n);
+		return true;
+	}
+	
+	//Draw an edge from the previous node
+	int dir = -1;	//0 east, 1 north, 2 west, 3 south
+	mapNode& prevn = nodes.back();
+	double xdiff = n.pos.x - prevn.pos.x;
+	double ydiff = n.pos.y - prevn.pos.y;
+	if (fabs(xdiff) > fabs(ydiff)) {
+		if (xdiff < 0.0) {
+			
+		}
+	}
+	
+	//See if we can merge the node with a currently existing one.
+	//TODO
+	
+	return true;
+}
+
 void OGMapper::objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg){
 
     ROS_INFO("received object position: %s at (%f, %f)", msg->name.c_str(), msg->position.x, msg->position.y);
@@ -333,8 +356,8 @@ std::vector<OGMapper::cell> OGMapper::computeTouchedGridCells(position origin, p
 
 OGMapper::position OGMapper::computeCellCornerPosition(cell gridCell, double xSign, double ySign){
     position corner;
-    corner.x = ((double) (gridCell.x - xOffset) / CELLS_PER_METER) + (xSign * 1/(2 * CELLS_PER_METER));
-    corner.y = ((double) (gridCell.y - yOffset) / CELLS_PER_METER) + (ySign * 1/(2 * CELLS_PER_METER));
+    corner.x = ((double) (gridCell.x - xOffset) / CELLS_PER_METER) + (xSign * 1.0/(2.0 * CELLS_PER_METER));
+    corner.y = ((double) (gridCell.y - yOffset) / CELLS_PER_METER) + (ySign * 1.0/(2.0 * CELLS_PER_METER));
     return corner;
 }
 

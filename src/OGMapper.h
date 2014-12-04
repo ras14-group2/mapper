@@ -70,7 +70,7 @@ private:
         }
     };
 
-    //saves an known object
+    //saves a known object
     struct object{
         position globalPosition;
         std::string name;
@@ -84,6 +84,24 @@ private:
             this->globalPosition = globalPosition;
             this->name = name;
         }
+    };
+    
+    struct mapNode {
+    	position pos;
+    	
+    	struct edge {
+    		mapNode *from, *to;
+    		double dist;
+    	};
+    	
+    	edge neighbors[4];	//0 east, 1 north, 2 west, 3 south
+    	
+    	mapNode(double x, double y) : pos(x, y) {
+    		for (int i = 0;i<4;++i) {
+    			neighbors[i].from = this;
+    			neighbors[i].to = NULL;
+    		}
+    	}
     };
 
     //subscriber + publisher for objects
@@ -116,12 +134,15 @@ private:
     bool visualize;
 
     //internal grid representation
-//    std::vector<std::vector<int8_t> > map;
+    //std::vector<std::vector<int8_t> > map;
     nav_msgs::OccupancyGrid map;
     size_t gridHeight;
     size_t gridWidth;
     int xOffset;
     int yOffset;
+		
+		//Graph of the topological map
+		std::list<mapNode> nodes;
 
     //holds the values of the side ir-sensors
     std::vector<double> sideSensorReadings;
@@ -148,7 +169,11 @@ private:
     //robot position and orientation in global space for pointcloud data
     position pcRoboPosition;
     double pcRoboOrientation;
-
+		
+		//function to add a node to the topological map
+		//Return true if inserted as a new node, false if merged with other node(s)
+		bool addNode(const OGMapper::mapNode& n);
+		
     //subscriber callback functions
     void objectCallback(const recognition_controller::ObjectPosition::ConstPtr &msg);
     void poseCallback(const OGMapper::posemsg::ConstPtr &msg);
