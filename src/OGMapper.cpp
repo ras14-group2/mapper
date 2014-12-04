@@ -380,7 +380,7 @@ void OGMapper::processIrData(){
 
             //set cells
             std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
-            const size_t nOfFreeCells = touchedCells.size();
+            const size_t nOfFreeCells = touchedCells.size() - 1;
             for(size_t j = 0; j < nOfFreeCells; j++){
                 setFree(touchedCells[j]);
             }
