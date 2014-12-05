@@ -25,6 +25,7 @@ OGMapper::OGMapper(){
     //irSub = nh.subscribe("/ir_reader_node/cdistance", 1, &OGMapper::irCallback, this);
 
     service = nh.advertiseService("/wall_in_front", &OGMapper::wallInFrontService, this);
+    pathService = nh.advertiseService("/find_path", &OGMapper::findPath, this);
 
     knownObjects = std::list<object>();
     objectID = 0;
@@ -295,12 +296,26 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     return;
 }
 
+bool OGMapper::findPath(mapper::PathToObject::Request &req, mapper::PathToObject::Response &res) {
+	
+	//find the shortest path
+	//TODO
+	
+	//Lookup where the desired object is
+	//TODO
+	
+	//Return some dummy path
+	res.path[0] = req.start;
+	
+	return true;
+}
+
 bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res){
 
     ros::Time now = ros::Time::now();
     ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
     //depth of observed box
-//    double depth = 0.1;
+    //double depth = 0.1;
 
     //back corners of observed box
     position bl(-0.12, 0.12);

@@ -1,4 +1,5 @@
 std_msgs/String object
 geometry_msgs/Point start
 ---
+std_msgs/Int32 length
 geometry_msgs/Point[] path

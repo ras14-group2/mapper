@@ -9,6 +9,7 @@
 #include <recognition_controller/ObjectPosition.h>
 #include <visualization_msgs/Marker.h>
 #include <mapper/WallInFront.h>
+#include <mapper/PathToObject.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -121,6 +122,7 @@ private:
 
     //service server
     ros::ServiceServer service;
+    ros::ServiceServer pathService;
 
     //list of all known objects
     std::list<object> knownObjects;
@@ -180,6 +182,9 @@ private:
     //robot position and orientation in global space for pointcloud data
     position pcRoboPosition;
     double pcRoboOrientation;
+		
+		//find the path from one node to another
+		bool findPath(mapper::PathToObject::Request &req, mapper::PathToObject::Response &res);
 		
 		//function to add a node to the topological map
 		//Return true if inserted as a new node, false if merged with other node(s)
