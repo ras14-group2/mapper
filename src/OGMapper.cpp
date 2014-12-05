@@ -82,8 +82,8 @@ OGMapper::OGMapper(){
     map.info.width = gridWidth;
     map.info.height = gridHeight;
     map.data.resize(gridHeight * gridWidth);
-    map.info.origin.position.x = 0;
-    map.info.origin.position.y = 0;
+    map.info.origin.position.x = - (double) GRID_SIDE_LENGTH_M / 2.0d;
+    map.info.origin.position.y = - (double) GRID_SIDE_LENGTH_M / 2.0d;
     map.info.origin.position.z = 0;
 
     for(size_t i = 0; i < map.data.size(); i++){
