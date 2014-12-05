@@ -326,7 +326,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         std::vector<cell> lineCells = computeTouchedGridCells(globalLeftEnd, globalRightEnd);
 
         for(size_t j = 0; j < lineCells.size(); j++){
-            if(getCellValue(lineCells[j]) > 50){
+            if(getCellValue(lineCells[j]) > 70){
                 res.wallInFront = 1;
                 now = ros::Time::now();
                 ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
