@@ -299,8 +299,8 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
 //    double depth = 0.1;
 
     //back corners of observed box
-    position bl(-0.12, 0.115);
-    position br(0.12, 0.115);
+    position bl(-0.12, 0.12);
+    position br(0.12, 0.12);
     position tip(0, 0.17);
 
     double depth = tip.y - bl.y;
@@ -315,8 +315,10 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
 
     for(size_t i = 0; i < nOfLines; i++){
         //compute ends of line to check
-        position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) (nOfLines-1), bl.y + ((double) i)/ (double)CELLS_PER_METER);
-        position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) (nOfLines-1), br.y + ((double) i)/CELLS_PER_METER);
+        position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) nOfLines, bl.y + ((double) i)/ (double)CELLS_PER_METER);
+        position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) nOfLines, br.y + ((double) i)/(double)CELLS_PER_METER);
+        
+        ROS_INFO("checking line from (%f, %f) to (%f, %f)", leftEnd.x, leftEnd.y, rightEnd.x, rightEnd.y);
 
         position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
         position globalRightEnd = computeGlobalPosition(rightEnd, roboPosition, roboOrientation);
@@ -327,7 +329,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
             if(getCellValue(lineCells[j]) > 50){
                 res.wallInFront = 1;
                 now = ros::Time::now();
-                ROS_INFO("responded WALL at %d.%d", now.sec, now.nsec);
+                ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
                 return true;
             }
         }
