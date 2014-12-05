@@ -34,11 +34,15 @@ OGMapper::OGMapper(){
     ir_sub_Ptr = new message_filters::Subscriber<OGMapper::irmsg>(nh, "/ir_reader_node/cdistance", 1);
     ir_sub_Ptr->registerCallback(&OGMapper::irCallback, this);
     pc_sub_Ptr = new message_filters::Subscriber<OGMapper::pcmsg>(nh, "/object_finder/wallpoints", 1);
-    //poseIrPolicy pol = poseIrPolicy(10);
-    //pol.setMaxIntervalDuration(ros::Duration(0.1));
-    ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(poseIrPolicy(10), *pose_sub_Ptr, *ir_sub_Ptr);
+    poseIrPolicy irPol = poseIrPolicy(20);
+    irPol.setMaxIntervalDuration(ros::Duration(0.05));
+    const poseIrPolicy constIrPol = irPol;
+    ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(constIrPol, *pose_sub_Ptr, *ir_sub_Ptr);
     ir_synchronizerPtr->registerCallback(&OGMapper::poseIrCallback, this);
-    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(posePcPolicy(20), *pose_sub_Ptr, *pc_sub_Ptr);
+    posePcPolicy pcPol = posePcPolicy(20);
+    pcPol.setMaxIntervalDuration(ros::Duration(0.05));
+    const posePcPolicy constPcPol = pcPol;
+    pc_synchronizerPtr = new message_filters::Synchronizer<posePcPolicy>(constPcPol, *pose_sub_Ptr, *pc_sub_Ptr);
     pc_synchronizerPtr->registerCallback(&OGMapper::posePcCallback, this);
 
     gridPub = nh.advertise<nav_msgs::OccupancyGrid>("/mapper/grid", 1);
