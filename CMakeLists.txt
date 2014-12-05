@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   WallInFront.srv
+  PathToObject.srv
 )
 
 generate_messages(
@@ -41,6 +42,7 @@ add_executable(mapper_node src/mapper_node.cpp src/OGMapper.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 add_dependencies(mapper_node mapper_generate_messages_cpp)
+add_dependencies(mapper_node object_finder_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(mapper_node

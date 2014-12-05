@@ -1,0 +1,4 @@
+std_msgs/String object
+geometry_msgs/Point start
+---
+geometry_msgs/Point[] path
