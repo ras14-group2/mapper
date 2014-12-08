@@ -149,6 +149,7 @@ private:
     //internal grid representation
     //std::vector<std::vector<int8_t> > map;
     nav_msgs::OccupancyGrid map;
+    nav_msgs::OccupancyGrid grownMap;
     size_t gridHeight;
     size_t gridWidth;
     int xOffset;
@@ -230,6 +231,15 @@ private:
 
     //returns the given cell's value
     int8_t getCellValue(cell gridCell);
+
+    //checks if several cells around the given cell are occupied
+    bool isEnvironmentOccupied(cell gridCell);
+
+    //checks if the given cell is inside the map
+    bool insideMap(cell gridCell);
+
+    //sets the cells in the region to fully occupied
+    void growRegion(cell gridCell);
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();

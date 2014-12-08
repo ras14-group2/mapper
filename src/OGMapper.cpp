@@ -95,6 +95,8 @@ OGMapper::OGMapper(){
         map.data[i] = -1;
     }
 
+    grownMap = map;
+
     xOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
     yOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
 
@@ -265,7 +267,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
 void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg){
 
-		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
+//		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
     pcRoboPosition.x = poseMsg->twist.linear.x;
     pcRoboPosition.y = poseMsg->twist.linear.y;
     pcRoboOrientation = poseMsg->twist.angular.z;
@@ -314,7 +316,7 @@ bool OGMapper::findPath(mapper::PathToObject::Request &req, mapper::PathToObject
 bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res){
 
     ros::Time now = ros::Time::now();
-    ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
+//    ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
     //depth of observed box
     //double depth = 0.1;
 
@@ -494,6 +496,9 @@ void OGMapper::setFree(cell gridCell){
     if(oldVal == -1){
         //unknown cell
         map.data[gridCell.y*gridWidth + gridCell.x] = 30;
+        if(grownMap.data[gridCell.y*gridWidth + gridCell.x] == -1){
+            grownMap.data[gridCell.y*gridWidth + gridCell.x] = 0;
+        }
     }
     else{
         //cell known, adapt value
@@ -512,12 +517,97 @@ void OGMapper::setOccupied(cell gridCell){
     else{
         //cell known, adapt value
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 80 ? 100 :  oldVal + 20;
+        if(map.data[gridCell.y*gridWidth + gridCell.x] >= 80){// && isEnvironmentOccupied(gridCell)){
+            ROS_INFO("cell value is 100, start environment check");
+            if(isEnvironmentOccupied(gridCell)){
+                ROS_INFO("occupied cells in environment found, start growing");
+                growRegion(gridCell);
+            }
+
+        }
     }
     return;
 }
 
 int8_t OGMapper::getCellValue(cell gridCell){
     return map.data[gridCell.y*gridWidth + gridCell.x];
+}
+
+bool OGMapper::isEnvironmentOccupied(cell gridCell){
+    std::vector<cell> cellDiffs(20);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+    cellDiffs[8] = cell(-1, -2);
+    cellDiffs[9] = cell(0, -2);
+    cellDiffs[10] = cell(1, -2);
+    cellDiffs[11] = cell(-1, 2);
+    cellDiffs[12] = cell(0, 2);
+    cellDiffs[13] = cell(1, 2);
+    cellDiffs[14] = cell(-2, -1);
+    cellDiffs[15] = cell(-2, 0);
+    cellDiffs[16] = cell(-2, 1);
+    cellDiffs[17] = cell(2, -1);
+    cellDiffs[18] = cell(2, 0);
+    cellDiffs[19] = cell(2, 1);
+
+    size_t occupiedCells = 0;
+
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell(gridCell.x + cellDiffs[i].x, gridCell.y + cellDiffs[i].y);
+        if(insideMap(tcell) && getCellValue(tcell) > 80){
+            occupiedCells++;
+        }
+    }
+    return occupiedCells >= 2;
+}
+
+bool OGMapper::insideMap(cell gridCell){
+    ROS_INFO("cell (%d, %d) inside map?", gridCell.x, gridCell.y);
+    return gridCell.x >= 0 && gridCell.y >= 0 && gridCell.x < GRID_SIDE_LENGTH_M*CELLS_PER_METER && gridCell.y < GRID_SIDE_LENGTH_M*CELLS_PER_METER;
+}
+
+void OGMapper::growRegion(cell gridCell){
+    std::vector<int> lineWidths(6);
+    lineWidths[0] = 3;
+    lineWidths[1] = 4;
+    lineWidths[2] = 5;
+    lineWidths[3] = 5;
+    lineWidths[4] = 5;
+    lineWidths[5] = 5;
+
+//    for(int line = gridCell.y - lineWidths.size() + 1; line < gridCell.y + lineWidths.size(); line++){
+//        for(int column = gridCell.x - lineWidths[line]; column <= gridCell.x + lineWidths[line]; column++){
+//            cell tcell(column, line);
+//            if(insideMap(tcell)){
+//                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+//            }
+//        }
+//    }
+    for(size_t i = 0; i  < lineWidths.size(); i++){
+        int line = gridCell.y - lineWidths.size() + 1 + i;
+        for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
+            cell tcell(column, line);
+            if(insideMap(tcell)){
+                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+            }
+        }
+    }
+    for(size_t i = 0; i < lineWidths.size() - 1; i++){
+        int line = gridCell.y + lineWidths.size() - 1 - i;
+        for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
+            cell tcell(column, line);
+            if(insideMap(tcell)){
+                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+            }
+        }
+    }
+
 }
 
 void OGMapper::visualizeGrid(){
@@ -548,7 +638,7 @@ void OGMapper::visualizeGrid(){
 //        }
 //    }
     map.header.stamp = ros::Time::now();
-    gridPub.publish(map);
+    gridPub.publish(grownMap);
     return;
 }
 
