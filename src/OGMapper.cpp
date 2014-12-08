@@ -306,7 +306,7 @@ bool OGMapper::findPath(mapper::PathToObject::Request &req, mapper::PathToObject
 	
 	//Return some dummy path
 	res.path[0] = req.start;
-	res.length = 1;
+//	res.length = 1;
 	
 	return true;
 }
