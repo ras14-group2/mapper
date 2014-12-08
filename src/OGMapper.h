@@ -235,7 +235,7 @@ private:
     void visualizeGrid();
 
     //send a Marker to show the position of the detected object in the map
-    void sendMarker(position globalPosition);
+    void sendMarker(position globalPosition, std::string objectName);
 
 
 };

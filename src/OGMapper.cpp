@@ -226,7 +226,7 @@ void OGMapper::objectCallback(const recognition_controller::ObjectPosition::Cons
 
     knownObjects.push_back(newObject);
 
-    sendMarker(newObject.globalPosition);
+    sendMarker(newObject.globalPosition, msg->name);
     return;
 }
 
@@ -329,7 +329,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     position roboPosition(req.position.x, req.position.y);
     double roboOrientation = req.angle;
 
-//    int occupiedCells = 0;
+    int occupiedCells = 0;
 
     int nOfLines = depth * CELLS_PER_METER + 1;
 
@@ -346,11 +346,14 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         std::vector<cell> lineCells = computeTouchedGridCells(globalLeftEnd, globalRightEnd);
 
         for(size_t j = 0; j < lineCells.size(); j++){
-            if(getCellValue(lineCells[j]) > 70){
-                res.wallInFront = 1;
-                now = ros::Time::now();
-                ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
-                return true;
+            if(getCellValue(lineCells[j]) > 80){
+                occupiedCells++;
+                if(occupiedCells > 2){
+                    res.wallInFront = 1;
+                    now = ros::Time::now();
+                    ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
+                    return true;
+                }
             }
         }
     }
@@ -549,30 +552,31 @@ void OGMapper::visualizeGrid(){
     return;
 }
 
-void OGMapper::sendMarker(position globalPosition){
+void OGMapper::sendMarker(position globalPosition, std::string objectName){
 
     visualization_msgs::Marker marker;
     marker.header.frame_id = "/map";
     marker.header.stamp = ros::Time::now();
     marker.ns = "basic_shapes";
     marker.id = objectID++;
-    marker.type = visualization_msgs::Marker::SPHERE;
+    marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
     marker.action = visualization_msgs::Marker::ADD;
     marker.pose.position.x = globalPosition.x;
     marker.pose.position.y = globalPosition.y;
-    marker.pose.position.z = 0;
+    marker.pose.position.z = 0.01;
     marker.pose.orientation.x = 0.0;
     marker.pose.orientation.y = 0.0;
     marker.pose.orientation.z = 0.0;
     marker.pose.orientation.w = 1.0;
+    marker.text = objectName;
 
     marker.scale.x = 0.05;
     marker.scale.y = 0.05;
-    marker.scale.z = 0.05;
+    marker.scale.z = 0.1;
 
-    marker.color.r = 0.0f;
-    marker.color.g = 1.0f;
-    marker.color.b = 0.0f;
+    marker.color.r = 1.0f;
+    marker.color.g = 0.0f;
+    marker.color.b = 1.0f;
     marker.color.a = 1.0;
 
     marker.lifetime = ros::Duration();
