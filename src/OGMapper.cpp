@@ -297,16 +297,95 @@ void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 }
 
 bool OGMapper::findPath(mapper::PathToObject::Request &req, mapper::PathToObject::Response &res) {
+
+	//Lookup where the desired object is
+	OGMapper::position destPos;
+	bool found = false;
+	for (std::list<object>::iterator it = knownObjects.begin(); it != knownObjects.end();++it) {
+		if (it->name == req.object.data) {
+			destPos.x = it->globalPosition.x;
+			destPos.y = it->globalPosition.y;
+			found = true;
+			break;
+		}
+	}
+	
+	if (!found) {
+		//The object is not found. Act accordingly.
+		//TODO
+		return false;
+	}
+	
+	int start = -1;
+	int dest = -1;
+	for (int i = 0;i<nodes.size();++i) {
+		if (fabs(nodes[i].pos.x - destPos.x) <= 0.1 && fabs(nodes[i].pos.y - destPos.y) <= 0.1) {
+			//Destination node found
+			dest = i;
+		}
+		if (fabs(nodes[i].pos.x - req.start.x) <= 0.1 && fabs(nodes[i].pos.y - req.start.y) <= 0.1) {
+			//Starting node found
+			start = i;
+		}
+	}
+	if (dest == -1) {
+		//Destination node not found, act accordingly.
+		//TODO
+	}
+	if (start = -1) {
+		//Starting node not found, act accordingly.
+		//TODO
+	}
 	
 	//find the shortest path
-	//TODO
+	const double nodePenalty = 0.0;	//The amount of nodes should affect the path weight
+	const int UNDEF = -1;	//Some random value
+	double* dists = new double[nodes.size()];
+	double* prev = new double[nodes.size()];
+	int u, v;
+	std::vector<int> q;
 	
-	//Lookup where the desired object is
-	//TODO
+	for (int i = 0;i<nodes.size();++i) {
+		q.push_back(i);
+		prev[i] = UNDEF;
+		if (i == start) {
+			dists[i] = 0.0;
+		} else {
+			dists[i] = UNDEF;
+		}
+	}
 	
-	//Return some dummy path
-	res.path[0] = req.start;
-//	res.length = 1;
+	while (!q.empty()) {
+		double minD = UNDEF;
+		u = UNDEF;
+		for (int i = 0;i<q.size();++i) {
+			if (minD == UNDEF || dists[i] > minD) {
+				minD = dists[i];
+				u = i;
+			}
+		}
+		for (int i = 0;i<4;++i) {
+			v = nodes[u].edges[i].to;
+			double alt = dists[u] + nodes[u].edges[i].dist + nodePenalty;
+			if (alt < dists[v]) {
+				dists[v] = alt;
+				prev[v] = u;
+			}
+		}
+	}
+	
+	std::vector<int> revPath;
+	int p = dest;
+	while (p != start) {
+		revPath.push_back(p);
+		p = prev[p];
+	}
+	revPath.push_back(start);
+	res.length.data = revPath.size();
+	for (int i = 0;i<revPath.size();++i) {
+		res.path[i].x = nodes[revPath[revPath.size()-1-i]].pos.x;
+		res.path[i].y = nodes[revPath[revPath.size()-1-i]].pos.y;
+	}
 	
 	return true;
 }
