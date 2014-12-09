@@ -669,7 +669,7 @@ bool OGMapper::isEnvironmentOccupied(cell gridCell){
 }
 
 bool OGMapper::insideMap(cell gridCell){
-    ROS_INFO("cell (%d, %d) inside map?", gridCell.x, gridCell.y);
+//    ROS_INFO("cell (%d, %d) inside map?", gridCell.x, gridCell.y);
     return gridCell.x >= 0 && gridCell.y >= 0 && gridCell.x < GRID_SIDE_LENGTH_M*CELLS_PER_METER && gridCell.y < GRID_SIDE_LENGTH_M*CELLS_PER_METER;
 }
 
