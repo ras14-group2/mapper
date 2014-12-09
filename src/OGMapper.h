@@ -112,6 +112,28 @@ private:
     		active = true;
     	}
     };
+
+    struct searchCell{
+        cell currentCell;
+        cell lastCell;
+        double cost;
+
+        searchCell(){
+            currentCell = cell();
+            lastCell = cell();
+            cost = 0;
+        }
+
+        searchCell(cell current, cell last, double cost){
+            this->currentCell = current;
+            this->lastCell = last;
+            this->cost = cost;
+        }
+
+        friend bool operator<(const searchCell& lhs, const searchCell& rhs){
+            return lhs.cost < rhs.cost;
+        }
+    };
 		
 		//node creation request subscriber
 		ros::Subscriber nodeCreationSub;
@@ -142,6 +164,9 @@ private:
 
     //publisher for the occupancy grid messages
     ros::Publisher gridPub;
+
+    //publisher for path to closest unknown cell
+    ros::Publisher pathToUnknownPub;
 
     //enable or disable generation of occupancy grid message
     bool visualize;
@@ -214,6 +239,9 @@ private:
     //computes the corresponding cell in the occupancy grid from a global position
     cell computeGridCell(position globalPosition);
 
+    //'reverse' of computeGridCell, compute global position from given grid cell
+    position computePositionFromGridCell(cell gridCell);
+
     //computes all cells touched by a ray from sensorPosition to point (ordered)
     std::vector<cell> computeTouchedGridCells(position sensorPosition, position point);
 
@@ -225,6 +253,9 @@ private:
 
     //sets the given cell to free (increases probability for free)
     void setFree(cell gridCell);
+
+    //sets the given cell definitely to free
+    void setStrictFree(cell gridCell);
 
     //sets the given cell to occupied (increases probability for occupied)
     void setOccupied(cell gridCell);
@@ -238,8 +269,14 @@ private:
     //checks if the given cell is inside the map
     bool insideMap(cell gridCell);
 
+    //grows the free fields slightly if neighbouring field is unknown
+    void growFree(cell gridCell);
+
     //sets the cells in the region to fully occupied
     void growRegion(cell gridCell);
+
+    //finds the next unknown cell and returns the path to it
+    bool findClosestUnknown(cell startCell, std::list<cell> &path);
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();

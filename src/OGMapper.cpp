@@ -1,6 +1,10 @@
 #include "OGMapper.h"
 
 #include <cmath>
+#include <queue>
+#include <map>
+
+#include <mapper/PathToUnknown.h>
 
 namespace mappers{
 
@@ -47,6 +51,7 @@ OGMapper::OGMapper(){
     pc_synchronizerPtr->registerCallback(&OGMapper::posePcCallback, this);
 
     gridPub = nh.advertise<nav_msgs::OccupancyGrid>("/mapper/grid", 1);
+    pathToUnknownPub = nh.advertise<mapper::PathToUnknown>("/mapper/pathToUnknown", 1);
 
     //sensor positions relative to robot origin
     sideSensorPositions = std::vector<position>(4);
@@ -63,19 +68,23 @@ OGMapper::OGMapper(){
 
     sideSensorReadings = std::vector<double>(4, -1);
 
-    insideRoboLines = std::vector<std::vector<position> >(6, std::vector<position>(2));
-    insideRoboLines[0][0] = sideSensorPositions[0];
-    insideRoboLines[0][1] = sideSensorPositions[1];
-    insideRoboLines[1][0] = sideSensorPositions[1];
-    insideRoboLines[1][1] = sideSensorPositions[2];
-    insideRoboLines[2][0] = sideSensorPositions[2];
-    insideRoboLines[2][1] = sideSensorPositions[3];
-    insideRoboLines[3][0] = sideSensorPositions[3];
-    insideRoboLines[3][1] = sideSensorPositions[0];
-    insideRoboLines[4][0] = sideSensorPositions[0];
-    insideRoboLines[4][1] = sideSensorPositions[2];
-    insideRoboLines[5][0] = sideSensorPositions[1];
-    insideRoboLines[5][1] = sideSensorPositions[3];
+    insideRoboLines = std::vector<std::vector<position> >(8, std::vector<position>(2));
+    insideRoboLines[0][0] = position(0.08, 0.09);
+    insideRoboLines[0][1] = position(-0.08, 0.09);
+    insideRoboLines[1][0] = position(-0.08, 0.09);
+    insideRoboLines[1][1] = position(-0.08, -0.09);
+    insideRoboLines[2][0] = position(-0.08, -0.09);
+    insideRoboLines[2][1] = position(0.08, -0.09);
+    insideRoboLines[3][0] = position(0.08, -0.09);
+    insideRoboLines[3][1] = position(0.08, 0.09);
+    insideRoboLines[4][0] = position(0.11, 0.05);
+    insideRoboLines[4][1] = position(0.11, -0.05);
+    insideRoboLines[5][0] = position(0.11, -0.05);
+    insideRoboLines[5][1] = position(-0.11, -0.05);
+    insideRoboLines[6][0] = position(-0.11, -0.05);
+    insideRoboLines[6][1] = position(-0.11, 0.05);
+    insideRoboLines[7][0] = position(-0.11, 0.05);
+    insideRoboLines[7][1] = position(0.11, 0.05);
 
     //initialize map
     //map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
@@ -262,6 +271,67 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
+    //check if position is known
+    position left = position(-0.08, 0.09 + 1.0d/CELLS_PER_METER);
+    position right = position(0.08, 0.09 + 1.0d/CELLS_PER_METER);
+
+    position globalLeft = computeGlobalPosition(left, irRoboPosition, irRoboOrientation);
+    position globalRight = computeGlobalPosition(right, irRoboPosition, irRoboOrientation);
+    std::vector<cell> frontCells = computeTouchedGridCells(globalLeft, globalRight);
+
+    int nOfVisitedCells = 0;
+    for(size_t i = 0; i < frontCells.size(); i++){
+        if(grownMap.data[frontCells[i].y*gridWidth + frontCells[i].x] == 0){
+            nOfVisitedCells++;
+        }
+    }
+
+    if(nOfVisitedCells >= 2){
+        //we have been here, find the closest unknown cell
+        ROS_INFO("reached known point, search for unknown cells");
+        std::list<cell> path;
+        cell pos = computeGridCell(irRoboPosition);
+        if(findClosestUnknown(pos, path)){
+            //send path to maze_navigator
+            ROS_INFO("unknown cell found, send path for following");
+
+            mapper::PathToUnknown msg;
+
+            std::list<cell>::const_iterator nextCell = path.begin();
+            nextCell++;
+            nextCell++;
+            for(std::list<cell>::const_iterator end = path.end(); nextCell != end; nextCell++){
+                 std::list<cell>::const_iterator currentCell = nextCell;
+                 currentCell--;
+                  std::list<cell>::const_iterator lastCell = currentCell;
+                  currentCell--;
+
+                //compute last direction
+                int lastXDir = currentCell->x - lastCell->x;
+                int lastYDir = currentCell->y - lastCell->x;
+                int newXDir = nextCell->x - currentCell->x;
+                int newYDir = nextCell->y - currentCell->y;
+
+                if(newXDir != lastXDir || newYDir != lastYDir){
+                    //turn in path, add node
+                    geometry_msgs::Point pt;
+                    position pos = computePositionFromGridCell(*currentCell);
+                    pt.x = pos.x;
+                    pt.y = pos.y;
+                    ROS_INFO("node in path: (%f, %f)", pt.x, pt.y);
+                    msg.points.push_back(pt);
+                }
+            }
+
+            pathToUnknownPub.publish(msg);
+        }
+        else{
+            //no unknown cells reachable, go back to start
+            ROS_INFO("no unknown cells found, go back to start");
+            //TODO
+        }
+    }
+
     return;
 }
 
@@ -427,6 +497,12 @@ OGMapper::cell OGMapper::computeGridCell(position globalPosition){
     return cell(round(globalPosition.x * CELLS_PER_METER) + xOffset, round(globalPosition.y * CELLS_PER_METER) + yOffset);
 }
 
+OGMapper::position OGMapper::computePositionFromGridCell(cell gridCell){
+    double x = ((double) (gridCell.x - xOffset)) / ((double) CELLS_PER_METER);
+    double y = ((double) (gridCell.y - yOffset)) / ((double) CELLS_PER_METER);
+    return position(x, y);
+}
+
 std::vector<OGMapper::cell> OGMapper::computeTouchedGridCells(position origin, position point){
     double xDiff = point.x - origin.x;
     double yDiff = point.y - origin.y;
@@ -486,6 +562,24 @@ void OGMapper::setCellsInsideRobotFree(){
         for(size_t j = 0; j < insideLine.size(); j++){
             setFree(insideLine[j]);
         }
+//        setStrictFree(computeGridCell(irRoboPosition));
+    }
+    cell centerCell = computeGridCell(irRoboPosition);
+    std::vector<cell> cellDiffs(8);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell = cell(centerCell.x + cellDiffs[i].x, centerCell.y + cellDiffs[i].y);
+        if(insideMap(tcell)){
+            grownMap.data[tcell.y*gridWidth + tcell.x] = 0;
+        }
     }
     return;
 }
@@ -497,13 +591,20 @@ void OGMapper::setFree(cell gridCell){
         //unknown cell
         map.data[gridCell.y*gridWidth + gridCell.x] = 30;
         if(grownMap.data[gridCell.y*gridWidth + gridCell.x] == -1){
-            grownMap.data[gridCell.y*gridWidth + gridCell.x] = 0;
+            grownMap.data[gridCell.y*gridWidth + gridCell.x] = 1;
+            growFree(gridCell);
         }
     }
     else{
         //cell known, adapt value
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal <= 20 ? 0 :  oldVal - 20;
     }
+    return;
+}
+
+void OGMapper::setStrictFree(cell gridCell){
+    map.data[gridCell.y*gridWidth + gridCell.x] = 0;
+    grownMap.data[gridCell.y*gridWidth + gridCell.x] = 0;
     return;
 }
 
@@ -572,14 +673,35 @@ bool OGMapper::insideMap(cell gridCell){
     return gridCell.x >= 0 && gridCell.y >= 0 && gridCell.x < GRID_SIDE_LENGTH_M*CELLS_PER_METER && gridCell.y < GRID_SIDE_LENGTH_M*CELLS_PER_METER;
 }
 
+void OGMapper::growFree(cell gridCell){
+    std::vector<cell> cellDiffs(8);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell = cell(gridCell.x + cellDiffs[i].x, gridCell.y + cellDiffs[i].y);
+        if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] == -1){
+            grownMap.data[tcell.y*gridWidth + tcell.x] = 1;
+        }
+    }
+    return;
+}
+
 void OGMapper::growRegion(cell gridCell){
-    std::vector<int> lineWidths(6);
-    lineWidths[0] = 3;
+    std::vector<int> lineWidths(7);
+    lineWidths[0] = 2;
     lineWidths[1] = 4;
     lineWidths[2] = 5;
     lineWidths[3] = 5;
-    lineWidths[4] = 5;
-    lineWidths[5] = 5;
+    lineWidths[4] = 6;
+    lineWidths[5] = 6;
+    lineWidths[6] = 6;
 
 //    for(int line = gridCell.y - lineWidths.size() + 1; line < gridCell.y + lineWidths.size(); line++){
 //        for(int column = gridCell.x - lineWidths[line]; column <= gridCell.x + lineWidths[line]; column++){
@@ -593,7 +715,7 @@ void OGMapper::growRegion(cell gridCell){
         int line = gridCell.y - lineWidths.size() + 1 + i;
         for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
             cell tcell(column, line);
-            if(insideMap(tcell)){
+            if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
             }
         }
@@ -602,12 +724,79 @@ void OGMapper::growRegion(cell gridCell){
         int line = gridCell.y + lineWidths.size() - 1 - i;
         for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
             cell tcell(column, line);
-            if(insideMap(tcell)){
+            if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
             }
         }
     }
 
+}
+
+bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
+    std::priority_queue<searchCell> nextSearchCells;
+    std::map<cell, cell> predecessors;
+
+    searchCell start;
+    start.currentCell = startCell;
+    start.cost = 0;
+
+    nextSearchCells.push(start);
+
+    bool foundCell = false;
+
+    while(!nextSearchCells.empty() && !foundCell){
+        searchCell currCell = nextSearchCells.top();
+        nextSearchCells.pop();
+
+        predecessors.insert(std::make_pair(currCell.currentCell, currCell.lastCell));
+
+        if(grownMap.data[currCell.currentCell.y*gridWidth + currCell.currentCell.x] == -1){
+            //found cell, find way back
+            path = std::list<cell>();
+            cell tcell = currCell.currentCell;
+            path.push_front(tcell);
+            do{
+                tcell = predecessors.at(tcell);
+                path.push_front(tcell);
+            }
+            while(tcell.x != startCell.x || tcell.y != startCell.y);
+            foundCell = true;
+        }
+        else{
+            //not found yet, keep searching
+
+            //get last direction
+            int xDir = currCell.currentCell.x - currCell.lastCell.x;
+            int yDir = currCell.currentCell.y - currCell.lastCell.y;
+
+            std::vector<cell> cellDiffs(4);
+            cellDiffs[0] = cell(-1, 0);
+            cellDiffs[1] = cell(0, 1);
+            cellDiffs[2] = cell(1, 0);
+            cellDiffs[3] = cell(0, -1);
+
+            for(size_t i = 0; i < 4; i++){
+                cell nextCell = cell(currCell.currentCell.x + cellDiffs[i].x, currCell.currentCell.y + cellDiffs[i].y);
+                if(grownMap.data[nextCell.y*gridWidth + nextCell.x] != 100){
+                    if(cellDiffs[i].x == xDir && cellDiffs[i].y == yDir){
+                        //go in same direction
+                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+1);
+                        nextSearchCells.push(sc);
+                    }
+                    else if(cellDiffs[i].x == -xDir && cellDiffs[i].y == -yDir){
+                        //don't go back, do nothing
+                    }
+                    else{
+                        //turn
+                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+20);
+                        nextSearchCells.push(sc);
+                    }
+                }
+            }
+        }
+    }
+
+    return foundCell;
 }
 
 void OGMapper::visualizeGrid(){
