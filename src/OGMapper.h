@@ -177,7 +177,10 @@ private:
     bool mazeExplored;
 
     //target point of the current path for exploration
-    position explorationTarget;
+    cell explorationTarget;
+
+    //path that is currently followed, only valid if explorationTarget != (-100, -100)
+    std::list<position> currentPath;
 
     //internal grid representation
     //std::vector<std::vector<int8_t> > map;
@@ -247,6 +250,9 @@ private:
 
     //insert the information from the ir sensors into the map
     void processIrData();
+
+    //checks if a given path is free (in grown map)
+    bool pathFree(std::list<position> path);
 
     //computes the global position from a position in robot space according to the robot's position and orientation
     position computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation);

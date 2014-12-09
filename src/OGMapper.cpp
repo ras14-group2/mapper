@@ -126,7 +126,7 @@ OGMapper::OGMapper(){
 
 
     mazeExplored = false;
-    explorationTarget = position(-100, -100);
+    explorationTarget = cell(-100, -100);
 
     return;
 }
@@ -293,16 +293,9 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
-    if(explorationTarget.x != -100 && explorationTarget.y != -100){
+    if(explorationTarget.x != -100 && explorationTarget.y != -100 && pathFree(currentPath)){
         //currently following a path
-        if(sqrt(pow(irRoboPosition.x - explorationTarget.x, 2) + pow(irRoboPosition.x - explorationTarget.y, 2)) < 0.1){
-            //sufficiently close to target, abort
-            explorationTarget.x = -100;
-            explorationTarget.y = -100;
-        }
-        else{
-            return;
-        }
+        return;
     }
     //if the maze is not completely explored yet, check if loop closure
 
@@ -337,6 +330,9 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
             startPoint.y = irRoboPosition.y;
             msg.points.push_back(startPoint);
 
+            currentPath.clear();
+            currentPath.push_back(irRoboPosition);
+
             std::list<cell>::const_iterator nextCell = path.begin();
             nextCell++;
             nextCell++;
@@ -357,19 +353,22 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                 if(newXDir != lastXDir || newYDir != lastYDir){
                     //turn in path, add node
                     geometry_msgs::Point pt;
-                    position pos = computePositionFromGridCell(*currentCell);
-                    explorationTarget = pos;
+                    position pos = computePositionFromGridCell(*currentCell);                    
                     pt.x = pos.x;
                     pt.y = pos.y;
                     ROS_INFO("node in path: (%f, %f)", pt.x, pt.y);
                     msg.points.push_back(pt);
+                    currentPath.push_back(pos);
+
                 }
             }
             position lastPos = computePositionFromGridCell(path.back());
+            explorationTarget = computeGridCell(lastPos);
             geometry_msgs::Point pt;
             pt.x = lastPos.x;
             pt.y = lastPos.y;
             msg.points.push_back(pt);
+            currentPath.push_back(lastPos);
             ROS_INFO("added target point: (%f, %f)", pt.x, pt.y);
 
             pathToUnknownPub.publish(msg);
@@ -600,6 +599,24 @@ void OGMapper::processIrData(){
     return;
 }
 
+bool OGMapper::pathFree(std::list<OGMapper::position> path){
+    std::list<position>::const_iterator nextTurn = path.begin();
+    nextTurn++;
+    for(std::list<position>::const_iterator end = path.end(); nextTurn != end; nextTurn++){
+        std::list<position>::const_iterator lastTurn = nextTurn;
+        lastTurn--;
+
+        //get touched grid cells
+        std::vector<cell> pathCells = computeTouchedGridCells(*lastTurn, *nextTurn);
+        for(size_t i = 0; i < pathCells.size(); i++){
+            if(grownMap.data[pathCells[i].y*gridWidth + pathCells[i].x] == 100){
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation){
     position globalPosition;
     globalPosition.x = roboPosition.x - (std::sin(roboOrientation)*relativePosition.x) - (std::cos(roboOrientation)*relativePosition.y);
@@ -705,7 +722,6 @@ void OGMapper::setFree(cell gridCell){
         //unknown cell
         map.data[gridCell.y*gridWidth + gridCell.x] = 30;
         if(grownMap.data[gridCell.y*gridWidth + gridCell.x] == -1){
-            grownMap.data[gridCell.y*gridWidth + gridCell.x] = 1;
             growFree(gridCell);
         }
     }
@@ -788,7 +804,7 @@ bool OGMapper::insideMap(cell gridCell){
 }
 
 void OGMapper::growFree(cell gridCell){
-    std::vector<cell> cellDiffs(8);
+    std::vector<cell> cellDiffs(9);
     cellDiffs[0] = cell(-1, -1);
     cellDiffs[1] = cell(0, -1);
     cellDiffs[2] = cell(1, -1);
@@ -797,11 +813,15 @@ void OGMapper::growFree(cell gridCell){
     cellDiffs[5] = cell(-1, 1);
     cellDiffs[6] = cell(0, 1);
     cellDiffs[7] = cell(1, 1);
+    cellDiffs[8] = cell(0, 0);
 
     for(size_t i = 0; i < cellDiffs.size(); i++){
         cell tcell = cell(gridCell.x + cellDiffs[i].x, gridCell.y + cellDiffs[i].y);
         if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] == -1){
             grownMap.data[tcell.y*gridWidth + tcell.x] = 1;
+            if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                explorationTarget = cell(-100, -100);
+            }
         }
     }
     return;
@@ -831,6 +851,9 @@ void OGMapper::growRegion(cell gridCell){
             cell tcell(column, line);
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+                if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    explorationTarget = cell(-100, -100);
+                }
             }
         }
     }
@@ -840,6 +863,9 @@ void OGMapper::growRegion(cell gridCell){
             cell tcell(column, line);
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+                if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    explorationTarget = cell(-100, -100);
+                }
             }
         }
     }
