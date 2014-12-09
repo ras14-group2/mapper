@@ -271,6 +271,11 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
+    if(mazeExplored){
+        return;
+    }
+    //if the maze is not completely explored yet, check if loop closure
+
     //check if position is known
     position left = position(-0.08, 0.09 + 1.0d/CELLS_PER_METER);
     position right = position(0.08, 0.09 + 1.0d/CELLS_PER_METER);
@@ -328,6 +333,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
         else{
             //no unknown cells reachable, go back to start
             ROS_INFO("no unknown cells found, go back to start");
+            mazeExplored = true;
             //TODO
         }
     }
@@ -793,7 +799,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
                     }
                     else{
                         //turn
-                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+20);
+                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+50);
                         nextSearchCells.push(sc);
                     }
                 }

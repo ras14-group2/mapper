@@ -131,7 +131,8 @@ private:
         }
 
         friend bool operator<(const searchCell& lhs, const searchCell& rhs){
-            return lhs.cost < rhs.cost;
+            //revert to get smallest costs from maxheap
+            return lhs.cost > rhs.cost;
         }
     };
 		
@@ -170,6 +171,9 @@ private:
 
     //enable or disable generation of occupancy grid message
     bool visualize;
+
+    //all reachable cells are known
+    bool mazeExplored;
 
     //internal grid representation
     //std::vector<std::vector<int8_t> > map;
