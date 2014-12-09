@@ -745,6 +745,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
     bool foundCell = false;
 
     while(!nextSearchCells.empty() && !foundCell){
+    ROS_INFO("heap size: %lu", nextSearchCells.size());
         searchCell currCell = nextSearchCells.top();
         nextSearchCells.pop();
 
