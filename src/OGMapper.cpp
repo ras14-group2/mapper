@@ -330,7 +330,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
                 //compute last direction
                 int lastXDir = currentCell->x - lastCell->x;
-                int lastYDir = currentCell->y - lastCell->x;
+                int lastYDir = currentCell->y - lastCell->y;
                 int newXDir = nextCell->x - currentCell->x;
                 int newYDir = nextCell->y - currentCell->y;
 
