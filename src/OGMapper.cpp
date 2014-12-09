@@ -748,6 +748,10 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
         searchCell currCell = nextSearchCells.top();
         nextSearchCells.pop();
 
+        if(predecessors.find(currCell.currentCell) != predecessors.end()){
+            continue;
+        }
+
         predecessors.insert(std::make_pair(currCell.currentCell, currCell.lastCell));
 
         if(grownMap.data[currCell.currentCell.y*gridWidth + currCell.currentCell.x] == -1){
