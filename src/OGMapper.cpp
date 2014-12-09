@@ -811,32 +811,6 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
 }
 
 void OGMapper::visualizeGrid(){
-
-//    size_t gridWidth = map[0].size();
-//    size_t gridHeight = map.size();
-
-//    size_t gridSize = gridWidth * gridHeight;
-
-//    ROS_INFO("grid size: %lu, %lu", gridWidth, gridHeight);
-
-//    nav_msgs::OccupancyGrid og;
-//    og.header.frame_id = "/map";
-//    og.header.stamp = ros::Time::now();
-//    og.info.resolution = 1.0d / CELLS_PER_METER;
-//    og.info.width = gridWidth;
-//    og.info.height = gridHeight;
-//    og.data.resize(gridSize);
-//    og.info.origin.position.x = 0;//-initialPosition.x; //- (double) gridWidth / (2*CELLS_PER_METER);
-//    og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
-//    og.info.origin.position.z = 0;
-
-//    // fill the occupancy grid
-//    for(size_t i = 0; i < gridHeight; i++){
-//        size_t offset = i * gridWidth;
-//        for(size_t j = 0; j < gridWidth; j++){
-//            og.data[offset + j] = map[i][j];
-//        }
-//    }
     map.header.stamp = ros::Time::now();
     gridPub.publish(grownMap);
     return;
