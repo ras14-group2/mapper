@@ -315,7 +315,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
         cell pos = computeGridCell(irRoboPosition);
         if(findClosestUnknown(pos, path)){
             //send path to maze_navigator
-            ROS_INFO("unknown cell found, send path for following");
+            ROS_INFO("unknown cell found, send path for following (size %lu)", path.size());
 
             mapper::PathToUnknown msg;
 
@@ -346,6 +346,12 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                     msg.points.push_back(pt);
                 }
             }
+            position lastPos = computePositionFromGridCell(path.back());
+            geometry_msgs::Point pt;
+            pt.x = lastPos.x;
+            pt.y = lastPos.y;
+            msg.points.push_back(pt);
+            ROS_INFO("added target point: (%f, %f)", pt.x, pt.y);
 
             pathToUnknownPub.publish(msg);
         }
