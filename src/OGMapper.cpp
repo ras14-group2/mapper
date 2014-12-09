@@ -126,7 +126,7 @@ OGMapper::OGMapper(){
 
 
     mazeExplored = false;
-    explorationTarget = cell(-100, -100);
+    explorationTarget = cell(-10000, -10000);
 
     return;
 }
@@ -293,8 +293,9 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
-    if(explorationTarget.x != -100 && explorationTarget.y != -100 && pathFree(currentPath)){
+    if(explorationTarget.x != -10000 && explorationTarget.y != -10000 && pathFree(currentPath)){
         //currently following a path
+        ROS_INFO("don't look for new path (explorationTarget: (%d, %d)", explorationTarget.x, explorationTarget.y);
         return;
     }
     //if the maze is not completely explored yet, check if loop closure
@@ -364,6 +365,8 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
             }
             position lastPos = computePositionFromGridCell(path.back());
             explorationTarget = computeGridCell(lastPos);
+            ROS_INFO("last position in path: (%f, %f)", lastPos.x, lastPos.y);
+            ROS_INFO("set explorationTarget to (%d, %d)", explorationTarget.x, explorationTarget.y);
             geometry_msgs::Point pt;
             pt.x = lastPos.x;
             pt.y = lastPos.y;
@@ -610,10 +613,12 @@ bool OGMapper::pathFree(std::list<OGMapper::position> path){
         std::vector<cell> pathCells = computeTouchedGridCells(*lastTurn, *nextTurn);
         for(size_t i = 0; i < pathCells.size(); i++){
             if(grownMap.data[pathCells[i].y*gridWidth + pathCells[i].x] == 100){
+                ROS_INFO("path is gowing through occupied field");
                 return false;
             }
         }
     }
+    ROS_INFO("path is free");
     return true;
 }
 
@@ -710,6 +715,9 @@ void OGMapper::setCellsInsideRobotFree(){
         cell tcell = cell(centerCell.x + cellDiffs[i].x, centerCell.y + cellDiffs[i].y);
         if(insideMap(tcell)){
             grownMap.data[tcell.y*gridWidth + tcell.x] = 0;
+            if(tcell.x == explorationTarget.x && tcell.y == explorationTarget.y){
+                abortPathFollow();
+            }
         }
     }
     return;
@@ -820,7 +828,7 @@ void OGMapper::growFree(cell gridCell){
         if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] == -1){
             grownMap.data[tcell.y*gridWidth + tcell.x] = 1;
             if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
-                explorationTarget = cell(-100, -100);
+                abortPathFollow();
             }
         }
     }
@@ -852,7 +860,7 @@ void OGMapper::growRegion(cell gridCell){
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
                 if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
-                    explorationTarget = cell(-100, -100);
+                    abortPathFollow();
                 }
             }
         }
@@ -864,7 +872,7 @@ void OGMapper::growRegion(cell gridCell){
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
                 if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
-                    explorationTarget = cell(-100, -100);
+                    abortPathFollow();
                 }
             }
         }
@@ -979,6 +987,12 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
     }
 
     return foundCell;
+}
+
+void OGMapper::abortPathFollow(){
+    explorationTarget = cell(-10000, -10000);
+    pathToUnknownPub.publish(mapper::PathToUnknown());
+    return;
 }
 
 void OGMapper::visualizeGrid(){

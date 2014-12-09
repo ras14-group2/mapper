@@ -299,6 +299,9 @@ private:
     //finds the next unknown cell and returns the path to it
     bool findClosestUnknown(cell startCell, std::list<cell> &path);
 
+    //aborts the path following mode in mapper + sends empty path to abort in maze_navigator
+    void abortPathFollow();
+
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();
 
