@@ -449,7 +449,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         for(size_t j = 0; j < lineCells.size(); j++){
             if(getCellValue(lineCells[j]) > 80){
                 occupiedCells++;
-                if(occupiedCells > 2){
+                if(occupiedCells > 5){
                     res.wallInFront = 1;
                     now = ros::Time::now();
                     ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
