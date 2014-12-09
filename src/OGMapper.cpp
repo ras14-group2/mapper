@@ -68,6 +68,16 @@ OGMapper::OGMapper(){
 
     sideSensorReadings = std::vector<double>(4, -1);
 
+    fbSensorPositions = std::vector<position>(2);
+    fbSensorPositions[0] = position(0, 0.09);
+    fbSensorPositions[1] = position(0, -0.1);
+
+    fbSensorOrientations = std::vector<int>(2);
+    fbSensorOrientations[0] = 1;
+    fbSensorOrientations[1] = -1;
+
+    fbSensorReadings = std::vector<double>(2, -1);
+
     insideRoboLines = std::vector<std::vector<position> >(8, std::vector<position>(2));
     insideRoboLines[0][0] = position(0.08, 0.09);
     insideRoboLines[0][1] = position(-0.08, 0.09);
@@ -263,6 +273,9 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     sideSensorReadings[1] = irMsg->back_right / 100.0d;
     sideSensorReadings[2] = irMsg->back_left / 100.0d;
     sideSensorReadings[3] = irMsg->front_left / 100.0d;
+
+    fbSensorReadings[0] = irMsg->front_center / 100.0d;
+    fbSensorReadings[1] = irMsg->back_center / 100.0d;
 
     if(mazeExplored){
         return;
@@ -531,6 +544,49 @@ void OGMapper::processIrData(){
 
             //compute global positions
             position globalSensorPosition = computeGlobalPosition(sideSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size() - 1;
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+        }
+    }
+
+    //process front + back sensor
+    for(size_t i = 0; i < 2; i++){
+        if(fbSensorReadings[i] < MAX_LONG_RANGE_SENSOR_DISTANCE){
+            //wall seen set cell to occupied and in-between cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = fbSensorPositions[i].x;
+            measuredPoint.y = fbSensorPositions[i].y + fbSensorReadings[i]* fbSensorOrientations[i];
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(fbSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size() - 1;
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+            setOccupied(computeGridCell(globalPointPosition));
+        }
+        else if(sideSensorReadings[i] != -1){
+            //no wall seen, set close cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = fbSensorPositions[i].x;
+            measuredPoint.y = fbSensorPositions[i].y + fbSensorOrientations[i] * MAX_LONG_RANGE_SENSOR_DISTANCE;
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(fbSensorPositions[i], irRoboPosition, irRoboOrientation);
             position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
 
             //set cells

@@ -19,6 +19,7 @@
 
 #define CELLS_PER_METER 50
 #define MAX_SENSOR_DISTANCE 0.25
+#define MAX_LONG_RANGE_SENSOR_DISTANCE 0.5
 #define GRID_SIDE_LENGTH_M 10
 
 namespace mappers{
@@ -198,6 +199,13 @@ private:
 
     //sign of x-direction of the sensors in robot space (clockwise, beginning with front right)
     std::vector<int> sideSensorOrientations;
+
+    //holds the values of the ir front + back sensor
+    std::vector<double> fbSensorReadings;
+
+    //equivalent to above
+    std::vector<position> fbSensorPositions;
+    std::vector<int> fbSensorOrientations;
 
     //wallpoints from pointcloud
     std::vector<position> wallPoints;
