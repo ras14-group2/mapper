@@ -175,6 +175,9 @@ private:
     //all reachable cells are known
     bool mazeExplored;
 
+    //target point of the current path for exploration
+    position explorationTarget;
+
     //internal grid representation
     //std::vector<std::vector<int8_t> > map;
     nav_msgs::OccupancyGrid map;

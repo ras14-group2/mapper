@@ -114,6 +114,10 @@ OGMapper::OGMapper(){
 
     updateCounter = 0;
 
+
+    mazeExplored = false;
+    explorationTarget = position(-100, -100);
+
     return;
 }
 
@@ -250,6 +254,7 @@ void OGMapper::irCallback(const OGMapper::irmsg::ConstPtr &msg){
 }
 
 void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg){
+
     irRoboPosition.x = poseMsg->twist.linear.x;
     irRoboPosition.y = poseMsg->twist.linear.y;
     irRoboOrientation = poseMsg->twist.angular.z;
@@ -258,6 +263,10 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     sideSensorReadings[1] = irMsg->back_right / 100.0d;
     sideSensorReadings[2] = irMsg->back_left / 100.0d;
     sideSensorReadings[3] = irMsg->front_left / 100.0d;
+
+    if(mazeExplored){
+        return;
+    }
 
     processIrData();
 
@@ -271,8 +280,16 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
-    if(mazeExplored){
-        return;
+    if(explorationTarget.x != -100 && explorationTarget.y != -100){
+        //currently following a path
+        if(sqrt(pow(irRoboPosition.x - explorationTarget.x, 2) + pow(irRoboPosition.x - explorationTarget.y, 2)) < 0.1){
+            //sufficiently close to target, abort
+            explorationTarget.x = -100;
+            explorationTarget.y = -100;
+        }
+        else{
+            return;
+        }
     }
     //if the maze is not completely explored yet, check if loop closure
 
@@ -317,6 +334,8 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                 int newXDir = nextCell->x - currentCell->x;
                 int newYDir = nextCell->y - currentCell->y;
 
+                ROS_INFO("diffs: lastX: %d, newX: %d, lastY: %d, newY: %d", lastXDir, newXDir, lastYDir, newYDir);
+
                 if(newXDir != lastXDir || newYDir != lastYDir){
                     //turn in path, add node
                     geometry_msgs::Point pt;
@@ -342,6 +361,10 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 }
 
 void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg){
+
+    if(mazeExplored){
+        return;
+    }
 
 //		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
     pcRoboPosition.x = poseMsg->twist.linear.x;
