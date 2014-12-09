@@ -304,7 +304,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                  std::list<cell>::const_iterator currentCell = nextCell;
                  currentCell--;
                   std::list<cell>::const_iterator lastCell = currentCell;
-                  currentCell--;
+                  lastCell--;
 
                 //compute last direction
                 int lastXDir = currentCell->x - lastCell->x;
