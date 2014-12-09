@@ -340,6 +340,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                     //turn in path, add node
                     geometry_msgs::Point pt;
                     position pos = computePositionFromGridCell(*currentCell);
+                    explorationTarget = pos;
                     pt.x = pos.x;
                     pt.y = pos.y;
                     ROS_INFO("node in path: (%f, %f)", pt.x, pt.y);
