@@ -348,7 +348,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
                 int newXDir = nextCell->x - currentCell->x;
                 int newYDir = nextCell->y - currentCell->y;
 
-                ROS_INFO("diffs: lastX: %d, newX: %d, lastY: %d, newY: %d", lastXDir, newXDir, lastYDir, newYDir);
+//                ROS_INFO("diffs: lastX: %d, newX: %d, lastY: %d, newY: %d", lastXDir, newXDir, lastYDir, newYDir);
 
                 if(newXDir != lastXDir || newYDir != lastYDir){
                     //turn in path, add node
@@ -880,12 +880,48 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
     start.currentCell = startCell;
     start.cost = 0;
 
+    ROS_INFO("robo orientation: %f", irRoboOrientation);
+
+    //compute main direction (90 degree steps)
+
+    double cosRot = cos(irRoboOrientation);
+    double cosBorder = cos(M_PI_4);
+    double sinRot = sin(irRoboOrientation);
+    double sinBorder = sin(M_PI_4);
+
+    if(cosRot >= cosBorder){
+        //negative x axis
+        start.lastCell.x = startCell.x + 1;
+        start.lastCell.y = startCell.y;
+        ROS_INFO("main direction: -x");
+
+    }
+    else if(cosRot <= -cosBorder){
+        //positive x axis
+        start.lastCell.x = startCell.x - 1;
+        start.lastCell.y = startCell.y;
+        ROS_INFO("main direction: +x");
+    }
+    else if(sinRot >= sinBorder){
+        //negative y direction
+        start.lastCell.x = startCell.x;
+        start.lastCell.y = startCell.y + 1;
+        ROS_INFO("main direction: -y");
+    }
+    else{
+        //positive y direction
+        start.lastCell.x = startCell.x;
+        start.lastCell.y = startCell.y - 1;
+        ROS_INFO("main direction: +y");
+    }
+
+
     nextSearchCells.push(start);
 
     bool foundCell = false;
 
     while(!nextSearchCells.empty() && !foundCell){
-    ROS_INFO("heap size: %lu", nextSearchCells.size());
+//    ROS_INFO("heap size: %lu", nextSearchCells.size());
         searchCell currCell = nextSearchCells.top();
         nextSearchCells.pop();
 
