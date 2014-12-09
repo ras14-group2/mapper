@@ -319,6 +319,11 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
             mapper::PathToUnknown msg;
 
+            geometry_msgs::Point startPoint;
+            startPoint.x = irRoboPosition.x;
+            startPoint.y = irRoboPosition.y;
+            msg.points.push_back(startPoint);
+
             std::list<cell>::const_iterator nextCell = path.begin();
             nextCell++;
             nextCell++;
@@ -355,6 +360,23 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
             ROS_INFO("added target point: (%f, %f)", pt.x, pt.y);
 
             pathToUnknownPub.publish(msg);
+
+            //visualize path
+            visualization_msgs::Marker pathMsg;
+            pathMsg.header.frame_id = "/map";
+            pathMsg.header.stamp = ros::Time::now();
+            pathMsg.type = visualization_msgs::Marker::LINE_STRIP;
+            pathMsg.color.r = 1.0;
+            pathMsg.color.a = 1.0;
+            pathMsg.ns = "basic_shapes";
+            pathMsg.action = visualization_msgs::Marker::ADD;
+            pathMsg.id = 0;
+            pathMsg.scale.x = 0.02;
+            for(size_t i = 0; i < msg.points.size(); i++){
+                pathMsg.points.push_back(msg.points[i]);
+            }
+            markerPub.publish(pathMsg);
+
         }
         else{
             //no unknown cells reachable, go back to start
@@ -655,9 +677,9 @@ void OGMapper::setOccupied(cell gridCell){
         //cell known, adapt value
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 80 ? 100 :  oldVal + 20;
         if(map.data[gridCell.y*gridWidth + gridCell.x] >= 80){// && isEnvironmentOccupied(gridCell)){
-            ROS_INFO("cell value is 100, start environment check");
+//            ROS_INFO("cell value is 100, start environment check");
             if(isEnvironmentOccupied(gridCell)){
-                ROS_INFO("occupied cells in environment found, start growing");
+//                ROS_INFO("occupied cells in environment found, start growing");
                 growRegion(gridCell);
             }
 
@@ -796,6 +818,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
             path = std::list<cell>();
             cell tcell = currCell.currentCell;
             path.push_front(tcell);
+            predecessors.insert(std::make_pair(startCell, cell(0, 0)));
             do{
                 tcell = predecessors.at(tcell);
                 path.push_front(tcell);
