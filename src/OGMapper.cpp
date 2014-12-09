@@ -36,7 +36,7 @@ OGMapper::OGMapper(){
     ir_sub_Ptr->registerCallback(&OGMapper::irCallback, this);
     pc_sub_Ptr = new message_filters::Subscriber<OGMapper::pcmsg>(nh, "/object_finder/wallpoints", 1);
     poseIrPolicy irPol = poseIrPolicy(20);
-    irPol.setMaxIntervalDuration(ros::Duration(0.05));
+    irPol.setMaxIntervalDuration(ros::Duration(0.02));
     const poseIrPolicy constIrPol = irPol;
     ir_synchronizerPtr = new message_filters::Synchronizer<poseIrPolicy>(constIrPol, *pose_sub_Ptr, *ir_sub_Ptr);
     ir_synchronizerPtr->registerCallback(&OGMapper::poseIrCallback, this);
@@ -400,7 +400,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     //back corners of observed box
     position bl(-0.12, 0.12);
     position br(0.12, 0.12);
-    position tip(0, 0.17);
+    position tip(0, 0.20);
 
     double depth = tip.y - bl.y;
 
@@ -425,9 +425,10 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         std::vector<cell> lineCells = computeTouchedGridCells(globalLeftEnd, globalRightEnd);
 
         for(size_t j = 0; j < lineCells.size(); j++){
+        		ROS_INFO("value at [%lu, %lu] (%d, %d): %d", j, i, lineCells[j].x, lineCells[j].y, getCellValue(lineCells[j]));
             if(getCellValue(lineCells[j]) > 80){
                 occupiedCells++;
-                if(occupiedCells > 2){
+                if(occupiedCells > 4){
                     res.wallInFront = 1;
                     now = ros::Time::now();
                     ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
