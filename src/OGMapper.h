@@ -106,6 +106,7 @@ private:
     	
     	edge edges[4];	//0 east, 1 north, 2 west, 3 south
     	
+    	mapNode() {}
     	mapNode(double x, double y) : pos(x, y) {
     		for (int i = 0;i<4;++i) {
     			edges[i].to = -1;
@@ -115,7 +116,7 @@ private:
     };
 		
 		//File for storing the map
-		const char* file_path = "/home/ras/nodes";
+		const char* file_path;
 		FILE* nodes_file;
 		
 		//node creation request subscriber

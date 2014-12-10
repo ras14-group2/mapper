@@ -4,7 +4,7 @@
 
 namespace mappers{
 
-OGMapper::OGMapper(){
+OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
     ros::NodeHandle nh;
 
     //TODO: not working yet, fix
@@ -111,11 +111,11 @@ OGMapper::OGMapper(){
 		} else {
 			nodes.clear();
 			mapNode n;
-			while (fscanf(nodes_file, "%lf %lf\n", &(n.pos.x), &(n.pos.y)) != EOF) {
-				fprintf(stderr, "Read: %lf %lf %lf\n", i, n.pos.x, n.pos.y);
+			for (int i = 0;fscanf(nodes_file, "%lf %lf\n", &(n.pos.x), &(n.pos.y)) != EOF;++i) {
+				fprintf(stderr, "Read: %lf %lf\n", n.pos.x, n.pos.y);
 				for (int j = 0;j < 4;++j) {
 					fscanf(nodes_file, "%d %lf\n", &(n.edges[j].to), &(n.edges[j].dist));
-					n.edges[j].from = id;
+					n.edges[j].from = i;
 					fprintf(stderr, "%d %lf\n", n.edges[j].to, n.edges[j].dist);
 				}
 				fclose(nodes_file);
@@ -131,7 +131,7 @@ OGMapper::~OGMapper(){
 		nodes_file = fopen(file_path, "w");
 		for (int i = 0;i<nodes.size();++i) {
 			const mapNode& n = nodes[i];
-			fprintf(nodes_file, "%lf %lf %lf\n", i, n.pos.x, n.pos.y);
+			fprintf(nodes_file, "%lf %lf\n", n.pos.x, n.pos.y);
 			for (int j = 0;j < 4;++j) {
 				fprintf(nodes_file, "%d %lf\n", n.edges[j].to, n.edges[j].dist);
 			}
