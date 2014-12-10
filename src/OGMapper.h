@@ -17,6 +17,8 @@
 
 #include <nav_msgs/OccupancyGrid.h>
 
+#include <robo_cartesian_controllers/Node.h>
+
 #define CELLS_PER_METER 50
 #define MAX_SENSOR_DISTANCE 0.25
 #define GRID_SIDE_LENGTH_M 10
@@ -194,7 +196,7 @@ private:
 		
 		//function to add a node to the topological map
 		//Return true if inserted as a new node, false if merged with other node(s)
-		bool addNode(double x, double y);
+		bool addNode(double x, double y, bool west, bool south, bool east, bool north);
 		
 		//Visualize the topological map nodes in rviz
 		void plotNodes();
@@ -205,7 +207,7 @@ private:
     void irCallback(const OGMapper::irmsg::ConstPtr &msg);
     void poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg);
     void posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg);
-    void nodeCreationCallback(const geometry_msgs::Point::ConstPtr &msg);
+    void nodeCreationCallback(const robo_cartesian_controllers::Node::ConstPtr &msg);
     
     //service functions
     bool wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res);

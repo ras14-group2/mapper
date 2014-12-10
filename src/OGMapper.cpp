@@ -140,7 +140,7 @@ OGMapper::~OGMapper(){
 	}
 }
 
-bool OGMapper::addNode(double x, double y) {
+bool OGMapper::addNode(double x, double y, bool west, bool south, bool east, bool north) {
 	const double mergeLimit = 0.1;
 	mapNode n(x, y);
 
@@ -150,24 +150,24 @@ bool OGMapper::addNode(double x, double y) {
 	}
 	
 	//Draw an edge from the previous node
-	int dir = -1;	//0 east, 1 north, 2 west, 3 south
+	int dir = -1;	//0 west, 1 south, 2 east, 3 north
 	mapNode& prevn = nodes.back();
 	double xdiff = n.pos.x - prevn.pos.x;
 	double ydiff = n.pos.y - prevn.pos.y;
 	if (fabs(xdiff) > fabs(ydiff)) {
 		if (xdiff > mergeLimit) {
-			dir = 0;	//east
+			dir = 0;	//west
 		} else if (xdiff < -mergeLimit) {
-			dir = 2;	//west
+			dir = 2;	//east
 		} else {
 			//Too close to the last one
 			return false;
 		}
 	} else {
 		if (ydiff > mergeLimit) {
-			dir = 1;	//north
+			dir = 1;	//south
 		} else if (ydiff < -mergeLimit) {
-			dir = 3;	//south
+			dir = 3;	//north
 		} else {
 			//Too close to the last one
 			return false;
@@ -240,10 +240,10 @@ void OGMapper::plotNodes() {
 	}
 }
 
-void OGMapper::nodeCreationCallback(const geometry_msgs::Point::ConstPtr &msg) {
-	ROS_INFO("Received node creation request at position (%lf, %lf)", msg->x, msg->y);
+void OGMapper::nodeCreationCallback(const robo_cartesian_controllers::Node::ConstPtr &msg) {
+	ROS_INFO("Received node creation request at position (%lf, %lf)", msg->x.data, msg->y.data);
 	if (true) {	//Perhaps some condition, but probably not
-		addNode((double)(msg->x), (double)(msg->y));
+		addNode(msg->x.data, msg->y.data, msg->west.data, msg->south.data, msg->east.data, msg->north.data);
 	}
 	plotNodes();
 }
