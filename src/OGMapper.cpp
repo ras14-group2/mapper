@@ -102,8 +102,42 @@ OGMapper::OGMapper(){
     irRoboOrientation = 0;
 
     updateCounter = 0;
+    
+    nodes.reserve(1000u);	//Should be plenty enough
+    nodes_file = fopen(file_path, "r");
+		if (nodes_file == NULL) {
+			//File not found. This means that there are no stored nodes from a previous run. Act accordingly.
+			//TODO
+		} else {
+			nodes.clear();
+			mapNode n;
+			while (fscanf(nodes_file, "%lf %lf\n", &(n.pos.x), &(n.pos.y)) != EOF) {
+				fprintf(stderr, "Read: %lf %lf %lf\n", i, n.pos.x, n.pos.y);
+				for (int j = 0;j < 4;++j) {
+					fscanf(nodes_file, "%d %lf\n", &(n.edges[j].to), &(n.edges[j].dist));
+					n.edges[j].from = id;
+					fprintf(stderr, "%d %lf\n", n.edges[j].to, n.edges[j].dist);
+				}
+				fclose(nodes_file);
+			}
+		}
 
     return;
+}
+
+OGMapper::~OGMapper(){
+	//Store the map in a file
+	if (nodes_file != NULL) {
+		nodes_file = fopen(file_path, "w");
+		for (int i = 0;i<nodes.size();++i) {
+			const mapNode& n = nodes[i];
+			fprintf(nodes_file, "%lf %lf %lf\n", i, n.pos.x, n.pos.y);
+			for (int j = 0;j < 4;++j) {
+				fprintf(nodes_file, "%d %lf\n", n.edges[j].to, n.edges[j].dist);
+			}
+			fclose(nodes_file);
+		}
+	}
 }
 
 bool OGMapper::addNode(double x, double y) {
@@ -111,7 +145,6 @@ bool OGMapper::addNode(double x, double y) {
 	mapNode n(x, y);
 
 	if (nodes.empty()) {
-		nodes.reserve(1000u);	//Should be plenty enough
 		nodes.push_back(n);
 		return true;
 	}

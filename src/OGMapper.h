@@ -27,6 +27,7 @@ class OGMapper{
 
 public:
     OGMapper();
+    ~OGMapper();
 
     //typedefs
     typedef geometry_msgs::TwistStamped posemsg;
@@ -112,6 +113,10 @@ private:
     		active = true;
     	}
     };
+		
+		//File for storing the map
+		const char* file_path = "/home/ras/nodes";
+		FILE* nodes_file;
 		
 		//node creation request subscriber
 		ros::Subscriber nodeCreationSub;
