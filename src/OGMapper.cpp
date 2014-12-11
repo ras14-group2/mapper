@@ -505,7 +505,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     res.wallInFront = 0;
 
     now = ros::Time::now();
-    ROS_INFO("responded free at %d.%d", now.sec, now.nsec);
+    //ROS_INFO("responded free at %d.%d", now.sec, now.nsec);
     return true;
 }
 
