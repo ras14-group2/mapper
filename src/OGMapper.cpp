@@ -295,7 +295,7 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 
     if(explorationTarget.x != -10000 && explorationTarget.y != -10000 && pathFree(currentPath)){
         //currently following a path
-        ROS_INFO("don't look for new path (explorationTarget: (%d, %d)", explorationTarget.x, explorationTarget.y);
+        ROS_INFO("don't look for new path (explorationTarget: (%d, %d))", explorationTarget.x, explorationTarget.y);
         return;
     }
     //if the maze is not completely explored yet, check if loop closure
@@ -483,7 +483,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) nOfLines, bl.y + ((double) i)/ (double)CELLS_PER_METER);
         position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) nOfLines, br.y + ((double) i)/(double)CELLS_PER_METER);
         
-        ROS_INFO("checking line from (%f, %f) to (%f, %f)", leftEnd.x, leftEnd.y, rightEnd.x, rightEnd.y);
+//        ROS_INFO("checking line from (%f, %f) to (%f, %f)", leftEnd.x, leftEnd.y, rightEnd.x, rightEnd.y);
 
         position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
         position globalRightEnd = computeGlobalPosition(rightEnd, roboPosition, roboOrientation);
