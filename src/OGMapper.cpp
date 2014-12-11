@@ -716,6 +716,7 @@ void OGMapper::setCellsInsideRobotFree(){
         if(insideMap(tcell)){
             grownMap.data[tcell.y*gridWidth + tcell.x] = 0;
             if(tcell.x == explorationTarget.x && tcell.y == explorationTarget.y){
+                ROS_INFO("target cell is written (free)");
                 abortPathFollow();
             }
         }
@@ -828,6 +829,7 @@ void OGMapper::growFree(cell gridCell){
         if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] == -1){
             grownMap.data[tcell.y*gridWidth + tcell.x] = 1;
             if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                ROS_INFO("target cell is written (free)");
                 abortPathFollow();
             }
         }
@@ -860,6 +862,7 @@ void OGMapper::growRegion(cell gridCell){
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
                 if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    ROS_INFO("target cell is written (occupied)");
                     abortPathFollow();
                 }
             }
@@ -872,6 +875,7 @@ void OGMapper::growRegion(cell gridCell){
             if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
                 grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
                 if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    ROS_INFO("target cell is written (occupied)");
                     abortPathFollow();
                 }
             }
@@ -990,6 +994,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
 }
 
 void OGMapper::abortPathFollow(){
+    ROS_INFO("abort path following");
     explorationTarget = cell(-10000, -10000);
     pathToUnknownPub.publish(mapper::PathToUnknown());
     return;
