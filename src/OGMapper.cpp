@@ -996,7 +996,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
 void OGMapper::abortPathFollow(){
     ROS_INFO("abort path following");
     explorationTarget = cell(-10000, -10000);
-    pathToUnknownPub.publish(mapper::PathToUnknown());
+    //pathToUnknownPub.publish(mapper::PathToUnknown());
     return;
 }
 
