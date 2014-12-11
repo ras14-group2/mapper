@@ -127,6 +127,7 @@ OGMapper::OGMapper(){
 
     mazeExplored = false;
     explorationTarget = cell(-10000, -10000);
+    lastTarget = cell(0, 0);
 
     return;
 }
@@ -322,6 +323,12 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
         cell pos = computeGridCell(irRoboPosition);
         if(findClosestUnknown(pos, path)){
             //send path to maze_navigator
+
+            if(lastTarget.x = path.back().x && lastTarget.y == path.back().y){
+                ROS_ERROR("found last target again -- abort");
+                return;
+            }
+
             ROS_INFO("unknown cell found, send path for following (size %lu)", path.size());
 
             mapper::PathToUnknown msg;
@@ -995,6 +1002,7 @@ bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
 
 void OGMapper::abortPathFollow(){
     ROS_INFO("abort path following");
+    lastTarget = explorationTarget;
     explorationTarget = cell(-10000, -10000);
     //pathToUnknownPub.publish(mapper::PathToUnknown());
     return;

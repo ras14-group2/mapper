@@ -178,6 +178,7 @@ private:
 
     //target point of the current path for exploration
     cell explorationTarget;
+    cell lastTarget;
 
     //path that is currently followed, only valid if explorationTarget != (-100, -100)
     std::list<position> currentPath;
