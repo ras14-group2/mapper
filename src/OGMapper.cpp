@@ -1,13 +1,16 @@
 #include "OGMapper.h"
 
 #include <cmath>
+#include <queue>
+#include <map>
+
+#include <mapper/PathToUnknown.h>
 
 namespace mappers{
 
 OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
     ros::NodeHandle nh;
 
-    //TODO: not working yet, fix
     nh.param<bool>("visualize_grid", visualize, false);
     visualize = true;
 
@@ -47,6 +50,7 @@ OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
     pc_synchronizerPtr->registerCallback(&OGMapper::posePcCallback, this);
 
     gridPub = nh.advertise<nav_msgs::OccupancyGrid>("/mapper/grid", 1);
+    pathToUnknownPub = nh.advertise<mapper::PathToUnknown>("/mapper/pathToUnknown", 1);
 
     //sensor positions relative to robot origin
     sideSensorPositions = std::vector<position>(4);
@@ -63,19 +67,33 @@ OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
 
     sideSensorReadings = std::vector<double>(4, -1);
 
-    insideRoboLines = std::vector<std::vector<position> >(6, std::vector<position>(2));
-    insideRoboLines[0][0] = sideSensorPositions[0];
-    insideRoboLines[0][1] = sideSensorPositions[1];
-    insideRoboLines[1][0] = sideSensorPositions[1];
-    insideRoboLines[1][1] = sideSensorPositions[2];
-    insideRoboLines[2][0] = sideSensorPositions[2];
-    insideRoboLines[2][1] = sideSensorPositions[3];
-    insideRoboLines[3][0] = sideSensorPositions[3];
-    insideRoboLines[3][1] = sideSensorPositions[0];
-    insideRoboLines[4][0] = sideSensorPositions[0];
-    insideRoboLines[4][1] = sideSensorPositions[2];
-    insideRoboLines[5][0] = sideSensorPositions[1];
-    insideRoboLines[5][1] = sideSensorPositions[3];
+    fbSensorPositions = std::vector<position>(2);
+    fbSensorPositions[0] = position(0, 0.09);
+    fbSensorPositions[1] = position(0, -0.1);
+
+    fbSensorOrientations = std::vector<int>(2);
+    fbSensorOrientations[0] = 1;
+    fbSensorOrientations[1] = -1;
+
+    fbSensorReadings = std::vector<double>(2, -1);
+
+    insideRoboLines = std::vector<std::vector<position> >(8, std::vector<position>(2));
+    insideRoboLines[0][0] = position(0.08, 0.09);
+    insideRoboLines[0][1] = position(-0.08, 0.09);
+    insideRoboLines[1][0] = position(-0.08, 0.09);
+    insideRoboLines[1][1] = position(-0.08, -0.09);
+    insideRoboLines[2][0] = position(-0.08, -0.09);
+    insideRoboLines[2][1] = position(0.08, -0.09);
+    insideRoboLines[3][0] = position(0.08, -0.09);
+    insideRoboLines[3][1] = position(0.08, 0.09);
+    insideRoboLines[4][0] = position(0.11, 0.05);
+    insideRoboLines[4][1] = position(0.11, -0.05);
+    insideRoboLines[5][0] = position(0.11, -0.05);
+    insideRoboLines[5][1] = position(-0.11, -0.05);
+    insideRoboLines[6][0] = position(-0.11, -0.05);
+    insideRoboLines[6][1] = position(-0.11, 0.05);
+    insideRoboLines[7][0] = position(-0.11, 0.05);
+    insideRoboLines[7][1] = position(0.11, 0.05);
 
     //initialize map
     //map = std::vector<std::vector<int8_t> >(GRID_SIDE_LENGTH_M * CELLS_PER_METER, std::vector<int8_t>(GRID_SIDE_LENGTH_M*CELLS_PER_METER, -1));
@@ -95,6 +113,8 @@ OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
         map.data[i] = -1;
     }
 
+    grownMap = map;
+
     xOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
     yOffset = GRID_SIDE_LENGTH_M*CELLS_PER_METER / 2;
 
@@ -107,7 +127,6 @@ OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
     nodes_file = fopen(file_path, "r");
 		if (nodes_file == NULL) {
 			//File not found. This means that there are no stored nodes from a previous run. Act accordingly.
-			//TODO
 		} else {
 			nodes.clear();
 			mapNode n;
@@ -121,6 +140,11 @@ OGMapper::OGMapper() :  file_path("/home/ras/nodes") {
 				fclose(nodes_file);
 			}
 		}
+
+
+    mazeExplored = false;
+    explorationTarget = cell(-10000, -10000);
+    lastTarget = cell(0, 0);
 
     return;
 }
@@ -272,6 +296,7 @@ void OGMapper::irCallback(const OGMapper::irmsg::ConstPtr &msg){
 }
 
 void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::irmsg::ConstPtr &irMsg){
+
     irRoboPosition.x = poseMsg->twist.linear.x;
     irRoboPosition.y = poseMsg->twist.linear.y;
     irRoboOrientation = poseMsg->twist.angular.z;
@@ -280,6 +305,13 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
     sideSensorReadings[1] = irMsg->back_right / 100.0d;
     sideSensorReadings[2] = irMsg->back_left / 100.0d;
     sideSensorReadings[3] = irMsg->front_left / 100.0d;
+
+    fbSensorReadings[0] = irMsg->front_center / 100.0d;
+    fbSensorReadings[1] = irMsg->back_center / 100.0d;
+
+    if(mazeExplored){
+        return;
+    }
 
     processIrData();
 
@@ -293,12 +325,130 @@ void OGMapper::poseIrCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const 
 //    updateCounter++;
     visualizeGrid();
 
+    if(explorationTarget.x != -10000 && explorationTarget.y != -10000 && pathFree(currentPath)){
+        //currently following a path
+        ROS_INFO("don't look for new path (explorationTarget: (%d, %d))", explorationTarget.x, explorationTarget.y);
+        return;
+    }
+    //if the maze is not completely explored yet, check if loop closure
+
+    //check if position is known
+    position left = position(-0.08, 0.09 + 1.0d/CELLS_PER_METER);
+    position right = position(0.08, 0.09 + 1.0d/CELLS_PER_METER);
+
+    position globalLeft = computeGlobalPosition(left, irRoboPosition, irRoboOrientation);
+    position globalRight = computeGlobalPosition(right, irRoboPosition, irRoboOrientation);
+    std::vector<cell> frontCells = computeTouchedGridCells(globalLeft, globalRight);
+
+    int nOfVisitedCells = 0;
+    for(size_t i = 0; i < frontCells.size(); i++){
+        if(grownMap.data[frontCells[i].y*gridWidth + frontCells[i].x] == 0){
+            nOfVisitedCells++;
+        }
+    }
+
+    if(nOfVisitedCells >= 2){
+        //we have been here, find the closest unknown cell
+        ROS_INFO("reached known point, search for unknown cells");
+        std::list<cell> path;
+        cell pos = computeGridCell(irRoboPosition);
+        if(findClosestUnknown(pos, path)){
+            //send path to maze_navigator
+
+            if(lastTarget.x = path.back().x && lastTarget.y == path.back().y){
+                ROS_ERROR("found last target again -- abort");
+                return;
+            }
+
+            ROS_INFO("unknown cell found, send path for following (size %lu)", path.size());
+
+            mapper::PathToUnknown msg;
+
+            geometry_msgs::Point startPoint;
+            startPoint.x = irRoboPosition.x;
+            startPoint.y = irRoboPosition.y;
+            msg.points.push_back(startPoint);
+
+            currentPath.clear();
+            currentPath.push_back(irRoboPosition);
+
+            std::list<cell>::const_iterator nextCell = path.begin();
+            nextCell++;
+            nextCell++;
+            for(std::list<cell>::const_iterator end = path.end(); nextCell != end; nextCell++){
+                 std::list<cell>::const_iterator currentCell = nextCell;
+                 currentCell--;
+                  std::list<cell>::const_iterator lastCell = currentCell;
+                  lastCell--;
+
+                //compute last direction
+                int lastXDir = currentCell->x - lastCell->x;
+                int lastYDir = currentCell->y - lastCell->y;
+                int newXDir = nextCell->x - currentCell->x;
+                int newYDir = nextCell->y - currentCell->y;
+
+//                ROS_INFO("diffs: lastX: %d, newX: %d, lastY: %d, newY: %d", lastXDir, newXDir, lastYDir, newYDir);
+
+                if(newXDir != lastXDir || newYDir != lastYDir){
+                    //turn in path, add node
+                    geometry_msgs::Point pt;
+                    position pos = computePositionFromGridCell(*currentCell);                    
+                    pt.x = pos.x;
+                    pt.y = pos.y;
+                    ROS_INFO("node in path: (%f, %f)", pt.x, pt.y);
+                    msg.points.push_back(pt);
+                    currentPath.push_back(pos);
+
+                }
+            }
+            position lastPos = computePositionFromGridCell(path.back());
+            explorationTarget = computeGridCell(lastPos);
+            ROS_INFO("last position in path: (%f, %f)", lastPos.x, lastPos.y);
+            ROS_INFO("set explorationTarget to (%d, %d)", explorationTarget.x, explorationTarget.y);
+            geometry_msgs::Point pt;
+            pt.x = lastPos.x;
+            pt.y = lastPos.y;
+            msg.points.push_back(pt);
+            currentPath.push_back(lastPos);
+            ROS_INFO("added target point: (%f, %f)", pt.x, pt.y);
+
+            pathToUnknownPub.publish(msg);
+
+            //visualize path
+            visualization_msgs::Marker pathMsg;
+            pathMsg.header.frame_id = "/map";
+            pathMsg.header.stamp = ros::Time::now();
+            pathMsg.type = visualization_msgs::Marker::LINE_STRIP;
+            pathMsg.color.r = 1.0;
+            pathMsg.color.a = 1.0;
+            pathMsg.ns = "basic_shapes";
+            pathMsg.action = visualization_msgs::Marker::ADD;
+            pathMsg.id = 0;
+            pathMsg.scale.x = 0.02;
+            for(size_t i = 0; i < msg.points.size(); i++){
+                pathMsg.points.push_back(msg.points[i]);
+            }
+            markerPub.publish(pathMsg);
+
+        }
+        else{
+            //no unknown cells reachable, go back to start
+            ROS_INFO("no unknown cells found, go back to start");
+            mazeExplored = true;
+            //TODO
+        }
+    }
+
     return;
 }
 
 void OGMapper::posePcCallback(const OGMapper::posemsg::ConstPtr &poseMsg, const OGMapper::pcmsg::ConstPtr &pcMsg){
 
-		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
+    if(mazeExplored){
+        return;
+    }
+
+//		ROS_INFO("received cloud with timestamp [%d.%d]. (current time: [%d.%d])", pcMsg->header.stamp.sec, pcMsg->header.stamp.nsec, ros::Time::now().sec, ros::Time::now().nsec);
     pcRoboPosition.x = poseMsg->twist.linear.x;
     pcRoboPosition.y = poseMsg->twist.linear.y;
     pcRoboOrientation = poseMsg->twist.angular.z;
@@ -426,7 +576,7 @@ bool OGMapper::findPath(mapper::PathToObject::Request &req, mapper::PathToObject
 bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::WallInFront::Response &res){
 
     ros::Time now = ros::Time::now();
-    ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
+//    ROS_INFO("received wall in front request at %d.%d", now.sec, now.nsec);
     //depth of observed box
     //double depth = 0.1;
 
@@ -450,7 +600,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         position leftEnd(((nOfLines-i)*bl.x + i*tip.x) /(double) nOfLines, bl.y + ((double) i)/ (double)CELLS_PER_METER);
         position rightEnd(((nOfLines-i)*br.x + i*tip.x) /(double) nOfLines, br.y + ((double) i)/(double)CELLS_PER_METER);
         
-        ROS_INFO("checking line from (%f, %f) to (%f, %f)", leftEnd.x, leftEnd.y, rightEnd.x, rightEnd.y);
+//        ROS_INFO("checking line from (%f, %f) to (%f, %f)", leftEnd.x, leftEnd.y, rightEnd.x, rightEnd.y);
 
         position globalLeftEnd = computeGlobalPosition(leftEnd, roboPosition, roboOrientation);
         position globalRightEnd = computeGlobalPosition(rightEnd, roboPosition, roboOrientation);
@@ -461,7 +611,8 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
         		ROS_INFO("value at [%lu, %lu] (%d, %d): %d", j, i, lineCells[j].x, lineCells[j].y, getCellValue(lineCells[j]));
             if(getCellValue(lineCells[j]) > 80){
                 occupiedCells++;
-                if(occupiedCells > 4){
+
+                if(occupiedCells > 5){
                     res.wallInFront = 1;
                     now = ros::Time::now();
                     ROS_INFO("responded WALL at %d.%d, position (%lu, %lu)", now.sec, now.nsec, j, i);
@@ -473,7 +624,7 @@ bool OGMapper::wallInFrontService(mapper::WallInFront::Request &req, mapper::Wal
     res.wallInFront = 0;
 
     now = ros::Time::now();
-    ROS_INFO("responded free at %d.%d", now.sec, now.nsec);
+    //ROS_INFO("responded free at %d.%d", now.sec, now.nsec);
     return true;
 }
 
@@ -524,7 +675,70 @@ void OGMapper::processIrData(){
             }
         }
     }
+
+    //process front + back sensor
+    for(size_t i = 0; i < 2; i++){
+        if(fbSensorReadings[i] < MAX_LONG_RANGE_SENSOR_DISTANCE){
+            //wall seen set cell to occupied and in-between cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = fbSensorPositions[i].x;
+            measuredPoint.y = fbSensorPositions[i].y + fbSensorReadings[i]* fbSensorOrientations[i];
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(fbSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size() - 1;
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+            setOccupied(computeGridCell(globalPointPosition));
+        }
+        else if(sideSensorReadings[i] != -1){
+            //no wall seen, set close cells to free
+
+            //compute relative posiiton of measured point
+            position measuredPoint;
+            measuredPoint.x = fbSensorPositions[i].x;
+            measuredPoint.y = fbSensorPositions[i].y + fbSensorOrientations[i] * MAX_LONG_RANGE_SENSOR_DISTANCE;
+
+            //compute global positions
+            position globalSensorPosition = computeGlobalPosition(fbSensorPositions[i], irRoboPosition, irRoboOrientation);
+            position globalPointPosition = computeGlobalPosition(measuredPoint, irRoboPosition, irRoboOrientation);
+
+            //set cells
+            std::vector<cell> touchedCells = computeTouchedGridCells(globalSensorPosition, globalPointPosition);
+            const size_t nOfFreeCells = touchedCells.size() - 1;
+            for(size_t j = 0; j < nOfFreeCells; j++){
+                setFree(touchedCells[j]);
+            }
+        }
+    }
     return;
+}
+
+bool OGMapper::pathFree(std::list<OGMapper::position> path){
+    std::list<position>::const_iterator nextTurn = path.begin();
+    nextTurn++;
+    for(std::list<position>::const_iterator end = path.end(); nextTurn != end; nextTurn++){
+        std::list<position>::const_iterator lastTurn = nextTurn;
+        lastTurn--;
+
+        //get touched grid cells
+        std::vector<cell> pathCells = computeTouchedGridCells(*lastTurn, *nextTurn);
+        for(size_t i = 0; i < pathCells.size(); i++){
+            if(grownMap.data[pathCells[i].y*gridWidth + pathCells[i].x] == 100){
+                ROS_INFO("path is gowing through occupied field");
+                return false;
+            }
+        }
+    }
+    ROS_INFO("path is free");
+    return true;
 }
 
 OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation){
@@ -536,6 +750,12 @@ OGMapper::position OGMapper::computeGlobalPosition(position relativePosition, po
 
 OGMapper::cell OGMapper::computeGridCell(position globalPosition){
     return cell(round(globalPosition.x * CELLS_PER_METER) + xOffset, round(globalPosition.y * CELLS_PER_METER) + yOffset);
+}
+
+OGMapper::position OGMapper::computePositionFromGridCell(cell gridCell){
+    double x = ((double) (gridCell.x - xOffset)) / ((double) CELLS_PER_METER);
+    double y = ((double) (gridCell.y - yOffset)) / ((double) CELLS_PER_METER);
+    return position(x, y);
 }
 
 std::vector<OGMapper::cell> OGMapper::computeTouchedGridCells(position origin, position point){
@@ -597,6 +817,28 @@ void OGMapper::setCellsInsideRobotFree(){
         for(size_t j = 0; j < insideLine.size(); j++){
             setFree(insideLine[j]);
         }
+//        setStrictFree(computeGridCell(irRoboPosition));
+    }
+    cell centerCell = computeGridCell(irRoboPosition);
+    std::vector<cell> cellDiffs(8);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell = cell(centerCell.x + cellDiffs[i].x, centerCell.y + cellDiffs[i].y);
+        if(insideMap(tcell)){
+            grownMap.data[tcell.y*gridWidth + tcell.x] = 0;
+            if(tcell.x == explorationTarget.x && tcell.y == explorationTarget.y){
+                ROS_INFO("target cell is written (free)");
+                abortPathFollow();
+            }
+        }
     }
     return;
 }
@@ -607,11 +849,20 @@ void OGMapper::setFree(cell gridCell){
     if(oldVal == -1){
         //unknown cell
         map.data[gridCell.y*gridWidth + gridCell.x] = 30;
+        if(grownMap.data[gridCell.y*gridWidth + gridCell.x] == -1){
+            growFree(gridCell);
+        }
     }
     else{
         //cell known, adapt value
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal <= 20 ? 0 :  oldVal - 20;
     }
+    return;
+}
+
+void OGMapper::setStrictFree(cell gridCell){
+    map.data[gridCell.y*gridWidth + gridCell.x] = 0;
+    grownMap.data[gridCell.y*gridWidth + gridCell.x] = 0;
     return;
 }
 
@@ -625,6 +876,14 @@ void OGMapper::setOccupied(cell gridCell){
     else{
         //cell known, adapt value
         map.data[gridCell.y*gridWidth + gridCell.x] = oldVal >= 80 ? 100 :  oldVal + 20;
+        if(map.data[gridCell.y*gridWidth + gridCell.x] >= 80){// && isEnvironmentOccupied(gridCell)){
+//            ROS_INFO("cell value is 100, start environment check");
+            if(isEnvironmentOccupied(gridCell)){
+//                ROS_INFO("occupied cells in environment found, start growing");
+                growRegion(gridCell);
+            }
+
+        }
     }
     return;
 }
@@ -633,35 +892,237 @@ int8_t OGMapper::getCellValue(cell gridCell){
     return map.data[gridCell.y*gridWidth + gridCell.x];
 }
 
-void OGMapper::visualizeGrid(){
+bool OGMapper::isEnvironmentOccupied(cell gridCell){
+    std::vector<cell> cellDiffs(20);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+    cellDiffs[8] = cell(-1, -2);
+    cellDiffs[9] = cell(0, -2);
+    cellDiffs[10] = cell(1, -2);
+    cellDiffs[11] = cell(-1, 2);
+    cellDiffs[12] = cell(0, 2);
+    cellDiffs[13] = cell(1, 2);
+    cellDiffs[14] = cell(-2, -1);
+    cellDiffs[15] = cell(-2, 0);
+    cellDiffs[16] = cell(-2, 1);
+    cellDiffs[17] = cell(2, -1);
+    cellDiffs[18] = cell(2, 0);
+    cellDiffs[19] = cell(2, 1);
 
-//    size_t gridWidth = map[0].size();
-//    size_t gridHeight = map.size();
+    size_t occupiedCells = 0;
 
-//    size_t gridSize = gridWidth * gridHeight;
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell(gridCell.x + cellDiffs[i].x, gridCell.y + cellDiffs[i].y);
+        if(insideMap(tcell) && getCellValue(tcell) > 80){
+            occupiedCells++;
+        }
+    }
+    return occupiedCells >= 2;
+}
 
-//    ROS_INFO("grid size: %lu, %lu", gridWidth, gridHeight);
+bool OGMapper::insideMap(cell gridCell){
+//    ROS_INFO("cell (%d, %d) inside map?", gridCell.x, gridCell.y);
+    return gridCell.x >= 0 && gridCell.y >= 0 && gridCell.x < GRID_SIDE_LENGTH_M*CELLS_PER_METER && gridCell.y < GRID_SIDE_LENGTH_M*CELLS_PER_METER;
+}
 
-//    nav_msgs::OccupancyGrid og;
-//    og.header.frame_id = "/map";
-//    og.header.stamp = ros::Time::now();
-//    og.info.resolution = 1.0d / CELLS_PER_METER;
-//    og.info.width = gridWidth;
-//    og.info.height = gridHeight;
-//    og.data.resize(gridSize);
-//    og.info.origin.position.x = 0;//-initialPosition.x; //- (double) gridWidth / (2*CELLS_PER_METER);
-//    og.info.origin.position.y = 0;//-initialPosition.y;// - (double) gridHeight / (2*CELLS_PER_METER);
-//    og.info.origin.position.z = 0;
+void OGMapper::growFree(cell gridCell){
+    std::vector<cell> cellDiffs(9);
+    cellDiffs[0] = cell(-1, -1);
+    cellDiffs[1] = cell(0, -1);
+    cellDiffs[2] = cell(1, -1);
+    cellDiffs[3] = cell(-1, 0);
+    cellDiffs[4] = cell(1, 0);
+    cellDiffs[5] = cell(-1, 1);
+    cellDiffs[6] = cell(0, 1);
+    cellDiffs[7] = cell(1, 1);
+    cellDiffs[8] = cell(0, 0);
 
-//    // fill the occupancy grid
-//    for(size_t i = 0; i < gridHeight; i++){
-//        size_t offset = i * gridWidth;
-//        for(size_t j = 0; j < gridWidth; j++){
-//            og.data[offset + j] = map[i][j];
+    for(size_t i = 0; i < cellDiffs.size(); i++){
+        cell tcell = cell(gridCell.x + cellDiffs[i].x, gridCell.y + cellDiffs[i].y);
+        if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] == -1){
+            grownMap.data[tcell.y*gridWidth + tcell.x] = 1;
+            if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                ROS_INFO("target cell is written (free)");
+                abortPathFollow();
+            }
+        }
+    }
+    return;
+}
+
+void OGMapper::growRegion(cell gridCell){
+    std::vector<int> lineWidths(7);
+    lineWidths[0] = 2;
+    lineWidths[1] = 4;
+    lineWidths[2] = 5;
+    lineWidths[3] = 5;
+    lineWidths[4] = 6;
+    lineWidths[5] = 6;
+    lineWidths[6] = 6;
+
+//    for(int line = gridCell.y - lineWidths.size() + 1; line < gridCell.y + lineWidths.size(); line++){
+//        for(int column = gridCell.x - lineWidths[line]; column <= gridCell.x + lineWidths[line]; column++){
+//            cell tcell(column, line);
+//            if(insideMap(tcell)){
+//                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+//            }
 //        }
 //    }
+    for(size_t i = 0; i  < lineWidths.size(); i++){
+        int line = gridCell.y - lineWidths.size() + 1 + i;
+        for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
+            cell tcell(column, line);
+            if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
+                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+                if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    ROS_INFO("target cell is written (occupied)");
+                    abortPathFollow();
+                }
+            }
+        }
+    }
+    for(size_t i = 0; i < lineWidths.size() - 1; i++){
+        int line = gridCell.y + lineWidths.size() - 1 - i;
+        for(int column = gridCell.x - lineWidths[i]; column <= gridCell .x + lineWidths[i]; column++){
+            cell tcell(column, line);
+            if(insideMap(tcell) && grownMap.data[tcell.y*gridWidth + tcell.x] != 0){
+                grownMap.data[tcell.y*gridWidth + tcell.x] = 100;
+                if(tcell.x = explorationTarget.x && tcell.y == explorationTarget.y){
+                    ROS_INFO("target cell is written (occupied)");
+                    abortPathFollow();
+                }
+            }
+        }
+    }
+
+}
+
+bool OGMapper::findClosestUnknown(cell startCell, std::list<cell> &path){
+    std::priority_queue<searchCell> nextSearchCells;
+    std::map<cell, cell> predecessors;
+
+    searchCell start;
+    start.currentCell = startCell;
+    start.cost = 0;
+
+    ROS_INFO("robo orientation: %f", irRoboOrientation);
+
+    //compute main direction (90 degree steps)
+
+    double cosRot = cos(irRoboOrientation);
+    double cosBorder = cos(M_PI_4);
+    double sinRot = sin(irRoboOrientation);
+    double sinBorder = sin(M_PI_4);
+
+    if(cosRot >= cosBorder){
+        //negative x axis
+        start.lastCell.x = startCell.x + 1;
+        start.lastCell.y = startCell.y;
+        ROS_INFO("main direction: -x");
+
+    }
+    else if(cosRot <= -cosBorder){
+        //positive x axis
+        start.lastCell.x = startCell.x - 1;
+        start.lastCell.y = startCell.y;
+        ROS_INFO("main direction: +x");
+    }
+    else if(sinRot >= sinBorder){
+        //negative y direction
+        start.lastCell.x = startCell.x;
+        start.lastCell.y = startCell.y + 1;
+        ROS_INFO("main direction: -y");
+    }
+    else{
+        //positive y direction
+        start.lastCell.x = startCell.x;
+        start.lastCell.y = startCell.y - 1;
+        ROS_INFO("main direction: +y");
+    }
+
+
+    nextSearchCells.push(start);
+
+    bool foundCell = false;
+
+    while(!nextSearchCells.empty() && !foundCell){
+//    ROS_INFO("heap size: %lu", nextSearchCells.size());
+        searchCell currCell = nextSearchCells.top();
+        nextSearchCells.pop();
+
+        if(predecessors.find(currCell.currentCell) != predecessors.end()){
+            continue;
+        }
+
+        predecessors.insert(std::make_pair(currCell.currentCell, currCell.lastCell));
+
+        if(grownMap.data[currCell.currentCell.y*gridWidth + currCell.currentCell.x] == -1){
+            //found cell, find way back
+            path = std::list<cell>();
+            cell tcell = currCell.currentCell;
+            path.push_front(tcell);
+            predecessors.insert(std::make_pair(startCell, cell(0, 0)));
+            do{
+                tcell = predecessors.at(tcell);
+                path.push_front(tcell);
+            }
+            while(tcell.x != startCell.x || tcell.y != startCell.y);
+            foundCell = true;
+        }
+        else{
+            //not found yet, keep searching
+
+            //get last direction
+            int xDir = currCell.currentCell.x - currCell.lastCell.x;
+            int yDir = currCell.currentCell.y - currCell.lastCell.y;
+
+            std::vector<cell> cellDiffs(4);
+            cellDiffs[0] = cell(-1, 0);
+            cellDiffs[1] = cell(0, 1);
+            cellDiffs[2] = cell(1, 0);
+            cellDiffs[3] = cell(0, -1);
+
+            for(size_t i = 0; i < 4; i++){
+                cell nextCell = cell(currCell.currentCell.x + cellDiffs[i].x, currCell.currentCell.y + cellDiffs[i].y);
+                if(grownMap.data[nextCell.y*gridWidth + nextCell.x] != 100){
+                    if(cellDiffs[i].x == xDir && cellDiffs[i].y == yDir){
+                        //go in same direction
+                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+1);
+                        nextSearchCells.push(sc);
+                    }
+                    else if(cellDiffs[i].x == -xDir && cellDiffs[i].y == -yDir){
+                        //don't go back, do nothing
+                    }
+                    else{
+                        //turn
+                        searchCell sc(nextCell, currCell.currentCell, currCell.cost+50);
+                        nextSearchCells.push(sc);
+                    }
+                }
+            }
+        }
+    }
+
+    return foundCell;
+}
+
+void OGMapper::abortPathFollow(){
+    ROS_INFO("abort path following");
+    lastTarget = explorationTarget;
+    explorationTarget = cell(-10000, -10000);
+    //pathToUnknownPub.publish(mapper::PathToUnknown());
+    return;
+}
+
+void OGMapper::visualizeGrid(){
     map.header.stamp = ros::Time::now();
-    gridPub.publish(map);
+    gridPub.publish(grownMap);
     return;
 }
 

@@ -21,6 +21,7 @@
 
 #define CELLS_PER_METER 50
 #define MAX_SENSOR_DISTANCE 0.25
+#define MAX_LONG_RANGE_SENSOR_DISTANCE 0.5
 #define GRID_SIDE_LENGTH_M 10
 
 namespace mappers{
@@ -116,6 +117,29 @@ private:
     		active = true;
     	}
     };
+
+    struct searchCell{
+        cell currentCell;
+        cell lastCell;
+        double cost;
+
+        searchCell(){
+            currentCell = cell();
+            lastCell = cell();
+            cost = 0;
+        }
+
+        searchCell(cell current, cell last, double cost){
+            this->currentCell = current;
+            this->lastCell = last;
+            this->cost = cost;
+        }
+
+        friend bool operator<(const searchCell& lhs, const searchCell& rhs){
+            //revert to get smallest costs from maxheap
+            return lhs.cost > rhs.cost;
+        }
+    };
 		
 		//File for storing the map
 		const char* file_path;
@@ -151,12 +175,26 @@ private:
     //publisher for the occupancy grid messages
     ros::Publisher gridPub;
 
+    //publisher for path to closest unknown cell
+    ros::Publisher pathToUnknownPub;
+
     //enable or disable generation of occupancy grid message
     bool visualize;
+
+    //all reachable cells are known
+    bool mazeExplored;
+
+    //target point of the current path for exploration
+    cell explorationTarget;
+    cell lastTarget;
+
+    //path that is currently followed, only valid if explorationTarget != (-100, -100)
+    std::list<position> currentPath;
 
     //internal grid representation
     //std::vector<std::vector<int8_t> > map;
     nav_msgs::OccupancyGrid map;
+    nav_msgs::OccupancyGrid grownMap;
     size_t gridHeight;
     size_t gridWidth;
     int xOffset;
@@ -173,6 +211,13 @@ private:
 
     //sign of x-direction of the sensors in robot space (clockwise, beginning with front right)
     std::vector<int> sideSensorOrientations;
+
+    //holds the values of the ir front + back sensor
+    std::vector<double> fbSensorReadings;
+
+    //equivalent to above
+    std::vector<position> fbSensorPositions;
+    std::vector<int> fbSensorOrientations;
 
     //wallpoints from pointcloud
     std::vector<position> wallPoints;
@@ -215,11 +260,17 @@ private:
     //insert the information from the ir sensors into the map
     void processIrData();
 
+    //checks if a given path is free (in grown map)
+    bool pathFree(std::list<position> path);
+
     //computes the global position from a position in robot space according to the robot's position and orientation
     position computeGlobalPosition(position relativePosition, position roboPosition, double roboOrientation);
 
     //computes the corresponding cell in the occupancy grid from a global position
     cell computeGridCell(position globalPosition);
+
+    //'reverse' of computeGridCell, compute global position from given grid cell
+    position computePositionFromGridCell(cell gridCell);
 
     //computes all cells touched by a ray from sensorPosition to point (ordered)
     std::vector<cell> computeTouchedGridCells(position sensorPosition, position point);
@@ -233,11 +284,32 @@ private:
     //sets the given cell to free (increases probability for free)
     void setFree(cell gridCell);
 
+    //sets the given cell definitely to free
+    void setStrictFree(cell gridCell);
+
     //sets the given cell to occupied (increases probability for occupied)
     void setOccupied(cell gridCell);
 
     //returns the given cell's value
     int8_t getCellValue(cell gridCell);
+
+    //checks if several cells around the given cell are occupied
+    bool isEnvironmentOccupied(cell gridCell);
+
+    //checks if the given cell is inside the map
+    bool insideMap(cell gridCell);
+
+    //grows the free fields slightly if neighbouring field is unknown
+    void growFree(cell gridCell);
+
+    //sets the cells in the region to fully occupied
+    void growRegion(cell gridCell);
+
+    //finds the next unknown cell and returns the path to it
+    bool findClosestUnknown(cell startCell, std::list<cell> &path);
+
+    //aborts the path following mode in mapper + sends empty path to abort in maze_navigator
+    void abortPathFollow();
 
     //generates a nav_msgs::OccupancyGrid message from internal grid representation
     void visualizeGrid();

@@ -14,8 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 add_message_files(
-	FILES
-	PathToUnknown.msg
+  FILES
+  PathToUnknown.msg
 )
 
 add_service_files(
